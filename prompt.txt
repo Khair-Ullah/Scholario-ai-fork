@@ -1,0 +1,3 @@
+tech stack is fast api backend and the and next.js for frontend
+the csv file datset is iven conert that to the alchemy database for usage
+

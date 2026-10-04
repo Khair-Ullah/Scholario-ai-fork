@@ -1,0 +1,21 @@
+# Decisions
+
+Decisions from the master build prompt:
+
+1. Derive host country from a university-country map because the CSV has no country column.
+2. Keep `application_url` nullable and admin-editable; when absent, link to a clearly labeled search fallback.
+3. Use the non-cleaned IELTS band column because the cleaned column lost 8+ values.
+4. Gate IELTS tiers by GPA thresholds per degree level. `taking_7` does not include tier 3 by default; expose a configuration flag.
+5. Store origin country, funding preference, and nice-to-haves without using them as match filters.
+6. Keep rows with duplicate titles when scholarship IDs differ.
+7. Recompute selection ratio from Pakistani selected/applicant counts and retain the source percentage for comparison.
+8. Keep access tokens in httpOnly cookies; do not store auth tokens in `localStorage`.
+9. Use SQLite locally and PostgreSQL in production via `DATABASE_URL`.
+10. Default AI features to an offline mock provider.
+
+## Implementation decisions
+
+- New application source lives in `frontend/` and `backend/`; the canonical scholarship CSV and generated country map live in `data/`.
+- Milestone 1 uses a minimal health endpoint and landing page; product workflows are delivered in subsequent milestones.
+- Database university-country rows are authoritative after initial CSV seeding, so administrator corrections survive later scholarship re-imports.
+- Use Next.js 16 and Tailwind 4 with the patched Tiptap 3 line; the production dependency audit is kept at zero known vulnerabilities.

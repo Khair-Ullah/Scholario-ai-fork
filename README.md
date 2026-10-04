@@ -1,8 +1,86 @@
-# ScholarMatched
+# Scholario
 
-ScholarMatched helps students discover scholarship opportunities, organize application work, and keep their profile and preparation materials together. This repository contains a downloaded static website, a runnable Node.js demo backend, fictional seed data, and a Supabase schema/import path.
+Scholario is a scholarship discovery and application workspace for students, with a focus on opportunities relevant to students from Pakistan. This repository is being rebuilt as a FastAPI + Next.js application following [SCHOLARIO_MASTER_PROMPT.md](SCHOLARIO_MASTER_PROMPT.md). Existing root-level HTML files are preserved as visual references; they are not the new application source.
 
-> **Implementation status:** The demo experience runs locally. Its sign-in is a single shared demo account, its five scholarship records are fictional, and it does not perform AI matching or model training. Do not deploy the demo credentials or represent demo recommendations/data as real. Production authentication, operational data, and any trained model require the work described below.
+## Features and status
+
+The target product includes student onboarding, explainable scholarship matching, saved scholarships, application tracking, checklists, document templates, an offline AI advisor stub, and scholarship administration. The initial scaffold currently provides the runnable API health endpoint and frontend home screen. Scholarship matching and workflows are not yet implemented; see [docs/PROGRESS.md](docs/PROGRESS.md).
+
+## Tech stack
+
+| Area | Technology |
+| --- | --- |
+| Frontend | Next.js App Router, TypeScript, Tailwind CSS |
+| Backend | FastAPI, SQLAlchemy 2, Pydantic v2 |
+| Database | SQLite for development; PostgreSQL via `DATABASE_URL` |
+| Tests | pytest, httpx; frontend build checks |
+| Operations | Docker Compose, Alembic, GitHub Actions |
+
+## Project structure
+
+```text
+backend/       FastAPI application, migrations, scripts, and tests
+frontend/      Next.js App Router application
+data/          Scholarship CSV and university-country mapping
+docs/          Product, architecture, API, and deployment documentation
+```
+
+## Quick start
+
+Requirements: Docker Compose, or Python 3.11+ and Node.js 20+.
+
+```sh
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env.local
+docker compose up --build
+```
+
+Open the frontend at <http://localhost:3000> and API docs at <http://localhost:8000/docs>. Health check: <http://localhost:8000/health>.
+
+For manual development, run `cd backend && python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt && python -m uvicorn app.main:app --reload` and, in another terminal, `cd frontend && npm ci && npm run dev`.
+
+## Environment variables
+
+Backend configuration is documented in [backend/.env.example](backend/.env.example); frontend configuration is in [frontend/.env.example](frontend/.env.example). Never commit `.env` or API keys.
+
+## Matching
+
+The planned matcher applies the target degree, IELTS tier cap, GPA tier cap, destination, and field rules from [docs/MATCHING_LOGIC.md](docs/MATCHING_LOGIC.md). It will not filter by origin country, funding preference, or optional preferences. It is not implemented in the initial scaffold.
+
+## AI integration
+
+AI will default to an offline mock provider. Provider methods and connection points are described in [docs/AI_INTEGRATION.md](docs/AI_INTEGRATION.md). Add provider credentials only to the backend environment; never expose them to the browser.
+
+## Payments
+
+The billing module will use a provider interface and verified webhooks. See [docs/PAYMENTS.md](docs/PAYMENTS.md); payment processing is not enabled in the scaffold.
+
+## Deployment and administration
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the planned deployment guide. Admin creation, scholarship import, and user management are upcoming milestones.
+
+## Testing and API
+
+Run `make test` for backend Ruff/pytest coverage (80% minimum) and frontend ESLint/production build. API endpoint documentation is generated at `/docs` and summarized in [docs/API.md](docs/API.md).
+
+## Contributing and license
+
+Keep changes aligned with the master build prompt and record implementation decisions in [docs/DECISIONS.md](docs/DECISIONS.md). No license has been selected yet.
+
+## Progress
+
+- [x] Steps 1–14 — Scaffold through core student workflows and partial admin tools (2026-10-03)
+- [ ] Step 15 — Lighthouse/accessibility review and SEO metadata verification
+- [ ] Step 16 — 80% service coverage, Playwright smoke flow, CI gates
+- [ ] Step 17 — Final deployment, payment, AI, and SRS documentation review
+
+This is a substantial first implementation, not yet the complete acceptance-tested product. Remaining work is recorded in [docs/PROGRESS.md](docs/PROGRESS.md), including partial admin/billing features, an eight-template starter set, security follow-ups, and unavailable Docker Compose verification.
+
+---
+
+## Legacy prototype notes
+
+The sections below describe an earlier exported ScholarMatched demo, not the current Scholario application. They are retained as historical reference only; use the Quick start above and the master prompt for current setup instructions.
 
 ## Contents
 
