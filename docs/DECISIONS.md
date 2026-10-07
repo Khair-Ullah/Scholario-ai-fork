@@ -15,7 +15,7 @@ Decisions from the master build prompt:
 
 ## Implementation decisions
 
-- New application source lives in `frontend/` and `backend/`; the canonical scholarship CSV and generated country map live in `data/`.
+- New application source lives in `frontend/` and `backend/`; the canonical scholarship CSV and generated country map live in `backend/data/`, and legacy reference pages live in `frontend/prototype/`.
 - Milestone 1 uses a minimal health endpoint and landing page; product workflows are delivered in subsequent milestones.
 - Database university-country rows are authoritative after initial CSV seeding, so administrator corrections survive later scholarship re-imports.
 - Use Next.js 16 and Tailwind 4 with the patched Tiptap 3 line; the production dependency audit is kept at zero known vulnerabilities.

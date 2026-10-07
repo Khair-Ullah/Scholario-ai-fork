@@ -1,6 +1,6 @@
 # Scholario
 
-Scholario is a scholarship discovery and application workspace for students, with a focus on opportunities relevant to students from Pakistan. This repository is being rebuilt as a FastAPI + Next.js application following [SCHOLARIO_MASTER_PROMPT.md](SCHOLARIO_MASTER_PROMPT.md). Existing root-level HTML files are preserved as visual references; they are not the new application source.
+Scholario is a scholarship discovery and application workspace for students, with a focus on opportunities relevant to students from Pakistan. This repository is being rebuilt as a FastAPI + Next.js application following [SCHOLARIO_MASTER_PROMPT.md](SCHOLARIO_MASTER_PROMPT.md). Legacy prototype HTML files are preserved under `frontend/prototype/` as visual references; they are not the new application source.
 
 ## Features and status
 
@@ -19,15 +19,14 @@ The target product includes student onboarding, explainable scholarship matching
 ## Project structure
 
 ```text
-backend/       FastAPI application, migrations, scripts, and tests
-frontend/      Next.js App Router application
-data/          Scholarship CSV and university-country mapping
+backend/       FastAPI application, migrations, scripts, tests, and scholarship CSV data (backend/data/)
+frontend/      Next.js App Router application (frontend/prototype/ holds legacy reference pages)
 docs/          Product, architecture, API, and deployment documentation
 ```
 
 ## Quick start
 
-Requirements: Docker Compose, or Python 3.11+ and Node.js 20+.
+Requirements: Docker with Compose v2. The backend image is Python 3.12 and requires Python 3.11+ if you run it outside Docker.
 
 ```sh
 cp backend/.env.example backend/.env
@@ -35,9 +34,13 @@ cp frontend/.env.example frontend/.env.local
 docker compose up --build
 ```
 
+Migrations and template seeding run automatically on backend start. Import the scholarship data once with `make seed`, then create the first admin with `make seed-admin EMAIL=admin@scholario.ai PASSWORD=your-password`.
+
 Open the frontend at <http://localhost:3000> and API docs at <http://localhost:8000/docs>. Health check: <http://localhost:8000/health>.
 
-For manual development, run `cd backend && python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt && python -m uvicorn app.main:app --reload` and, in another terminal, `cd frontend && npm ci && npm run dev`.
+For manual development, run `cd backend && python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt && python -m alembic upgrade head && python -m uvicorn app.main:app --reload` and, in another terminal, `cd frontend && npm ci && npm run dev`.
+
+Common commands are wrapped by the `Makefile`: `make up`, `make logs`, `make ps`, `make down`, `make seed`, `make test`.
 
 ## Environment variables
 

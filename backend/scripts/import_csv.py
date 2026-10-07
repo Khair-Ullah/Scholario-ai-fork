@@ -8,7 +8,11 @@ from app.services.csv_import import import_country_map, import_csv
 def main() -> None:
     parser = argparse.ArgumentParser(description="Idempotently import scholarship CSV data")
     parser.add_argument("--file", type=Path, required=True)
-    parser.add_argument("--country-map", type=Path, default=Path("../data/university_country_map.csv"))
+    parser.add_argument(
+        "--country-map",
+        type=Path,
+        default=Path(__file__).resolve().parents[1] / "data" / "university_country_map.csv",
+    )
     args = parser.parse_args()
 
     with SessionLocal() as session:

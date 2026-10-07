@@ -1,0 +1,160 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 900" font-family="Segoe UI, Calibri, Arial, sans-serif">
+<defs>
+<marker id="arr-er" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M 0 0 L 10 5 L 0 10 z" fill="#26736b"/>
+</marker>
+</defs>
+<text x="430" y="26" text-anchor="middle" font-size="15" font-weight="bold" fill="#26736b">Data Model — Core Entities (ER Diagram)</text>
+<g stroke="#26736b" stroke-width="1.5" fill="none">
+<path d="M125 146 V176"/>
+<path d="M25 93 H8 V667 H25"/>
+<path d="M8 385 H25"/>
+<path d="M125 730 V760"/>
+<path d="M225 93 H278"/>
+<path d="M278 83 V793"/>
+<path d="M278 83 H330"/><path d="M278 219 H330"/><path d="M278 375 H330"/><path d="M278 531 H330"/><path d="M278 667 H330"/><path d="M278 793 H330"/>
+<path d="M635 103 H583"/>
+<path d="M583 83 V375"/>
+<path d="M583 83 H530"/><path d="M583 219 H530"/><path d="M583 375 H530"/>
+<path d="M430 710 V740"/>
+<path d="M125 574 V604"/>
+</g>
+<g font-size="9.5" fill="#1f5a53" font-weight="bold">
+<text x="131" y="165">1:1</text>
+<text x="131" y="750">1:N</text>
+<text x="285" y="77">1:N</text>
+<text x="590" y="77">1:N</text>
+<text x="436" y="730">1:N</text>
+<text x="131" y="594">1:N</text>
+</g>
+<rect x="25" y="40" width="200" height="106" fill="#ffffff" stroke="#26736b" stroke-width="1.5"/>
+<rect x="25" y="40" width="200" height="26" fill="#26736b"/>
+<text x="35" y="58" font-size="11.5" font-weight="bold" fill="#ffffff">users</text>
+<g font-size="10.5" fill="#333">
+<text x="35" y="80">PK  user_id</text>
+<text x="35" y="100">     email (unique)</text>
+<text x="35" y="120">     role (student/admin)</text>
+<text x="35" y="140">     plan (free/pro)</text>
+</g>
+<rect x="25" y="176" width="200" height="126" fill="#ffffff" stroke="#26736b" stroke-width="1.5"/>
+<rect x="25" y="176" width="200" height="26" fill="#26736b"/>
+<text x="35" y="194" font-size="11.5" font-weight="bold" fill="#ffffff">profiles</text>
+<g font-size="10.5" fill="#333">
+<text x="35" y="216">PK  profile_id</text>
+<text x="35" y="236">FK  user_id</text>
+<text x="35" y="256">     gpa_4_equivalent</text>
+<text x="35" y="276">     ielts_status</text>
+<text x="35" y="296">     target_level</text>
+</g>
+<rect x="25" y="332" width="200" height="106" fill="#ffffff" stroke="#26736b" stroke-width="1.5"/>
+<rect x="25" y="332" width="200" height="26" fill="#26736b"/>
+<text x="35" y="350" font-size="11.5" font-weight="bold" fill="#ffffff">refresh_tokens</text>
+<g font-size="10.5" fill="#333">
+<text x="35" y="372">PK  token_hash</text>
+<text x="35" y="392">FK  user_id</text>
+<text x="35" y="412">     expires_at</text>
+<text x="35" y="432">     revoked</text>
+</g>
+<rect x="25" y="468" width="200" height="106" fill="#ffffff" stroke="#26736b" stroke-width="1.5"/>
+<rect x="25" y="468" width="200" height="26" fill="#26736b"/>
+<text x="35" y="486" font-size="11.5" font-weight="bold" fill="#ffffff">templates</text>
+<g font-size="10.5" fill="#333">
+<text x="35" y="508">PK  template_id</text>
+<text x="35" y="528">     title · category</text>
+<text x="35" y="548">     is_premium</text>
+<text x="35" y="568">     body_html</text>
+</g>
+<rect x="25" y="604" width="200" height="126" fill="#ffffff" stroke="#26736b" stroke-width="1.5"/>
+<rect x="25" y="604" width="200" height="26" fill="#26736b"/>
+<text x="35" y="622" font-size="11.5" font-weight="bold" fill="#ffffff">documents</text>
+<g font-size="10.5" fill="#333">
+<text x="35" y="644">PK  document_id</text>
+<text x="35" y="664">FK  user_id · template_id</text>
+<text x="35" y="684">     title · doc_type</text>
+<text x="35" y="704">     content_html</text>
+<text x="35" y="724">     version · word_count</text>
+</g>
+<rect x="25" y="760" width="200" height="86" fill="#ffffff" stroke="#26736b" stroke-width="1.5"/>
+<rect x="25" y="760" width="200" height="26" fill="#26736b"/>
+<text x="35" y="778" font-size="11.5" font-weight="bold" fill="#ffffff">document_versions</text>
+<g font-size="10.5" fill="#333">
+<text x="35" y="800">PK  version_id</text>
+<text x="35" y="820">FK  document_id</text>
+<text x="35" y="840">     version · content_html</text>
+</g>
+<rect x="330" y="40" width="200" height="86" fill="#ffffff" stroke="#26736b" stroke-width="1.5"/>
+<rect x="330" y="40" width="200" height="26" fill="#26736b"/>
+<text x="340" y="58" font-size="11.5" font-weight="bold" fill="#ffffff">saved_scholarships</text>
+<g font-size="10.5" fill="#333">
+<text x="340" y="80">PK/FK  user_id</text>
+<text x="340" y="100">PK/FK  scholarship_id</text>
+<text x="340" y="120">       note</text>
+</g>
+<rect x="330" y="156" width="200" height="126" fill="#ffffff" stroke="#26736b" stroke-width="1.5"/>
+<rect x="330" y="156" width="200" height="26" fill="#26736b"/>
+<text x="340" y="174" font-size="11.5" font-weight="bold" fill="#ffffff">applications</text>
+<g font-size="10.5" fill="#333">
+<text x="340" y="196">PK  application_id</text>
+<text x="340" y="216">FK  user_id · scholarship_id</text>
+<text x="340" y="236">     status</text>
+<text x="340" y="256">     applied_on</text>
+<text x="340" y="276">     next_step · next_step_date</text>
+</g>
+<rect x="330" y="312" width="200" height="126" fill="#ffffff" stroke="#26736b" stroke-width="1.5"/>
+<rect x="330" y="312" width="200" height="26" fill="#26736b"/>
+<text x="340" y="330" font-size="11.5" font-weight="bold" fill="#ffffff">checklist_items</text>
+<g font-size="10.5" fill="#333">
+<text x="340" y="352">PK  item_id</text>
+<text x="340" y="372">FK  user_id · scholarship_id</text>
+<text x="340" y="392">     title · category</text>
+<text x="340" y="412">     is_done</text>
+<text x="340" y="432">     due_date</text>
+</g>
+<rect x="330" y="468" width="200" height="126" fill="#ffffff" stroke="#26736b" stroke-width="1.5"/>
+<rect x="330" y="468" width="200" height="26" fill="#26736b"/>
+<text x="340" y="486" font-size="11.5" font-weight="bold" fill="#ffffff">notifications</text>
+<g font-size="10.5" fill="#333">
+<text x="340" y="508">PK  notification_id</text>
+<text x="340" y="528">FK  user_id</text>
+<text x="340" y="548">     title · body · kind</text>
+<text x="340" y="568">     link</text>
+<text x="340" y="588">     is_read</text>
+</g>
+<rect x="330" y="624" width="200" height="86" fill="#ffffff" stroke="#26736b" stroke-width="1.5"/>
+<rect x="330" y="624" width="200" height="26" fill="#26736b"/>
+<text x="340" y="642" font-size="11.5" font-weight="bold" fill="#ffffff">chat_sessions</text>
+<g font-size="10.5" fill="#333">
+<text x="340" y="664">PK  session_id</text>
+<text x="340" y="684">FK  user_id</text>
+<text x="340" y="704">     title · scholarship_id</text>
+</g>
+<rect x="330" y="740" width="200" height="106" fill="#ffffff" stroke="#26736b" stroke-width="1.5"/>
+<rect x="330" y="740" width="200" height="26" fill="#26736b"/>
+<text x="340" y="758" font-size="11.5" font-weight="bold" fill="#ffffff">chat_messages</text>
+<g font-size="10.5" fill="#333">
+<text x="340" y="780">PK  message_id</text>
+<text x="340" y="800">FK  session_id</text>
+<text x="340" y="820">     role · content</text>
+<text x="340" y="840">     tokens</text>
+</g>
+<rect x="635" y="40" width="200" height="126" fill="#ffffff" stroke="#26736b" stroke-width="1.5"/>
+<rect x="635" y="40" width="200" height="26" fill="#26736b"/>
+<text x="645" y="58" font-size="11.5" font-weight="bold" fill="#ffffff">scholarships</text>
+<g font-size="10.5" fill="#333">
+<text x="645" y="80">PK  scholarship_id</text>
+<text x="645" y="100">     title · level</text>
+<text x="645" y="120">     host_country</text>
+<text x="645" y="140">     ielts_tier · deadline</text>
+<text x="645" y="160">     selection_ratio · source_data</text>
+</g>
+<rect x="635" y="240" width="200" height="86" fill="#fdf8f0" stroke="#c89b5e" stroke-width="1.5" stroke-dasharray="6 4"/>
+<rect x="635" y="240" width="200" height="26" fill="#c89b5e"/>
+<text x="645" y="258" font-size="11.5" font-weight="bold" fill="#ffffff">university_country</text>
+<g font-size="10.5" fill="#333">
+<text x="645" y="280">PK  university_name</text>
+<text x="645" y="300">     host_country</text>
+<text x="645" y="320">     confidence (0–1)</text>
+</g>
+<text x="735" y="352" text-anchor="middle" font-size="9.5" font-style="italic" fill="#8a6420">import-time join (844 universities)</text>
+<text x="430" y="882" text-anchor="middle" font-size="10" font-style="italic" fill="#555">PK = primary key · FK = foreign key · solid connectors = one-to-many (1:N) unless marked 1:1 · all student rows are private to their owner</text>
+</svg>

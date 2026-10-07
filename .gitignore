@@ -12,9 +12,10 @@ frontend/.env.local
 frontend/node_modules/
 frontend/.next/
 frontend/out/
-data/*.db
+frontend/*.tsbuildinfo
 coverage/
+.coverage
 .DS_Store
 .~lock.*#
 *.db
-!data/*.db
+!backend/data/*.db

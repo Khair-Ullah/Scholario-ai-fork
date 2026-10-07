@@ -3,9 +3,9 @@ import csv
 import re
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-INPUT = ROOT / "data" / "fully_formated_scholarships.csv"
-OUTPUT = ROOT / "data" / "university_country_map.csv"
+BACKEND = Path(__file__).resolve().parents[1]
+INPUT = BACKEND / "data" / "fully_formated_scholarships.csv"
+OUTPUT = BACKEND / "data" / "university_country_map.csv"
 
 SEEDS = {
     "United States": [

@@ -135,10 +135,10 @@ scholario/
 │   ├── MATCHING_LOGIC.md
 │   ├── DECISIONS.md
 │   └── PROGRESS.md
-├── data/
-│   ├── fully_formated_scholarships.csv
-│   └── university_country_map.csv     # university_name,host_country,confidence
 ├── backend/
+│   ├── data/
+│   │   ├── fully_formated_scholarships.csv
+│   │   └── university_country_map.csv     # university_name,host_country,confidence
 │   ├── requirements.txt
 │   ├── .env.example
 │   ├── alembic.ini
@@ -265,7 +265,7 @@ Indexes: `(level)`, `(host_country)`, `(ielts_tier)`, `(deadline_date)`, `(schol
 
 ## 6. CSV → DATABASE IMPORT (script `scripts/import_csv.py`)
 
-Command: `python -m scripts.import_csv --file ../data/fully_formated_scholarships.csv` (also callable from admin UI).
+Command: `python -m scripts.import_csv --file data/fully_formated_scholarships.csv` (run from `backend/`; also callable from admin UI).
 Must be **idempotent** (upsert by `scholarship_id`), run in chunks of 500, print a report (rows read, inserted, updated, skipped, warnings).
 
 ### Cleaning rules (write each as a tiny function, unit-test them)
@@ -285,7 +285,7 @@ Must be **idempotent** (upsert by `scholarship_id`), run in chunks of 500, print
 | `short_description` | contains HTML (`<p>`, `&nbsp;`). Store raw as `description_html`; also create `description_text` (stripped) for cards & search. Sanitize HTML on output (allow p, br, ul, li, b, strong, a). |
 | `grant_amount_numeric`, `stipend_monthly_usd`, `total_funding_score` | numeric; null-safe. |
 | `nominating_body_pk`, `return_obligation_details`, `degree_field_restriction` | mostly empty → keep nullable; hide in UI if empty. |
-| `host_country` | join with `data/university_country_map.csv` (Section 7). Unmapped → `"Unknown"` and counted in the report. |
+| `host_country` | join with `backend/data/university_country_map.csv` (Section 7). Unmapped → `"Unknown"` and counted in the report. |
 
 After import, run `scripts/build_country_map.py --report` to list unmapped universities.
 
@@ -293,7 +293,7 @@ After import, run `scripts/build_country_map.py --report` to list unmapped unive
 
 ## 7. HOST COUNTRY MAPPING
 
-The CSV has no country. Build `data/university_country_map.csv` with columns `university_name,host_country,confidence` for all 844 universities.
+The CSV has no country. Build `backend/data/university_country_map.csv` with columns `university_name,host_country,confidence` for all 844 universities.
 
 **Step A — seed these known ones exactly:**
 

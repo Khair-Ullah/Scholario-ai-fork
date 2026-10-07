@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 195" font-family="Segoe UI, Calibri, Arial, sans-serif">
+<defs>
+<marker id="arr-journey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+<path d="M 0 0 L 10 5 L 0 10 z" fill="#26736b"/>
+</marker>
+</defs>
+<text x="450" y="28" text-anchor="middle" font-size="15" font-weight="bold" fill="#26736b">Student Journey (Happy Path)</text>
+<rect x="2" y="64" width="110" height="76" rx="8" fill="#eef5f4" stroke="#26736b" stroke-width="1.5"/>
+<text x="57" y="86" text-anchor="middle" font-size="10" font-weight="bold" fill="#8a9a97">01</text>
+<text x="57" y="106" text-anchor="middle" font-size="11" font-weight="bold" fill="#12433d">Landing page</text>
+<text x="57" y="125" text-anchor="middle" font-size="10" fill="#555">public site</text>
+<line x1="114" y1="102" x2="129" y2="102" stroke="#26736b" stroke-width="1.6" marker-end="url(#arr-journey)"/>
+<rect x="133" y="64" width="110" height="76" rx="8" fill="#eef5f4" stroke="#26736b" stroke-width="1.5"/>
+<text x="188" y="86" text-anchor="middle" font-size="10" font-weight="bold" fill="#8a9a97">02</text>
+<text x="188" y="106" text-anchor="middle" font-size="11" font-weight="bold" fill="#12433d">Sign up</text>
+<text x="188" y="125" text-anchor="middle" font-size="10" fill="#555">register / login</text>
+<line x1="245" y1="102" x2="260" y2="102" stroke="#26736b" stroke-width="1.6" marker-end="url(#arr-journey)"/>
+<rect x="264" y="64" width="110" height="76" rx="8" fill="#eef5f4" stroke="#26736b" stroke-width="1.5"/>
+<text x="319" y="86" text-anchor="middle" font-size="10" font-weight="bold" fill="#8a9a97">03</text>
+<text x="319" y="106" text-anchor="middle" font-size="11" font-weight="bold" fill="#12433d">Onboarding</text>
+<text x="319" y="125" text-anchor="middle" font-size="10" fill="#555">10-step wizard</text>
+<line x1="376" y1="102" x2="391" y2="102" stroke="#26736b" stroke-width="1.6" marker-end="url(#arr-journey)"/>
+<rect x="395" y="64" width="110" height="76" rx="8" fill="#26736b" stroke="#1f5a53" stroke-width="1.5"/>
+<text x="450" y="86" text-anchor="middle" font-size="10" font-weight="bold" fill="#bfe0db">04</text>
+<text x="450" y="106" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff">Matched list</text>
+<text x="450" y="125" text-anchor="middle" font-size="10" fill="#d9efec">ranked + chance %</text>
+<line x1="507" y1="102" x2="522" y2="102" stroke="#26736b" stroke-width="1.6" marker-end="url(#arr-journey)"/>
+<rect x="526" y="64" width="110" height="76" rx="8" fill="#eef5f4" stroke="#26736b" stroke-width="1.5"/>
+<text x="581" y="86" text-anchor="middle" font-size="10" font-weight="bold" fill="#8a9a97">05</text>
+<text x="581" y="106" text-anchor="middle" font-size="11" font-weight="bold" fill="#12433d">Save &amp; track</text>
+<text x="581" y="125" text-anchor="middle" font-size="10" fill="#555">applications</text>
+<line x1="638" y1="102" x2="653" y2="102" stroke="#26736b" stroke-width="1.6" marker-end="url(#arr-journey)"/>
+<rect x="657" y="64" width="110" height="76" rx="8" fill="#eef5f4" stroke="#26736b" stroke-width="1.5"/>
+<text x="712" y="86" text-anchor="middle" font-size="10" font-weight="bold" fill="#8a9a97">06</text>
+<text x="712" y="106" text-anchor="middle" font-size="11" font-weight="bold" fill="#12433d">Documents</text>
+<text x="712" y="125" text-anchor="middle" font-size="10" fill="#555">checklists · templates</text>
+<line x1="769" y1="102" x2="784" y2="102" stroke="#26736b" stroke-width="1.6" marker-end="url(#arr-journey)"/>
+<rect x="788" y="64" width="110" height="76" rx="8" fill="#eef5f4" stroke="#26736b" stroke-width="1.5"/>
+<text x="843" y="86" text-anchor="middle" font-size="10" font-weight="bold" fill="#8a9a97">07</text>
+<text x="843" y="106" text-anchor="middle" font-size="11" font-weight="bold" fill="#12433d">AI &amp; export</text>
+<text x="843" y="125" text-anchor="middle" font-size="10" fill="#555">advisor · DOCX/PDF</text>
+<text x="450" y="176" text-anchor="middle" font-size="10" font-style="italic" fill="#555">Every step persists server-side — onboarding autosaves, sessions survive refresh (httpOnly cookies), data stays private per account</text>
+</svg>

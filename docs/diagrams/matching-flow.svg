@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 875" font-family="Segoe UI, Calibri, Arial, sans-serif">
+<defs>
+<marker id="arr-match" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+<path d="M 0 0 L 10 5 L 0 10 z" fill="#26736b"/>
+</marker>
+</defs>
+<text x="390" y="26" text-anchor="middle" font-size="15" font-weight="bold" fill="#26736b">Matching Engine — Deterministic Flow</text>
+<rect x="190" y="50" width="400" height="64" rx="8" fill="#eef5f4" stroke="#26736b" stroke-width="1.5"/>
+<text x="390" y="76" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#12433d">1 · Input — Student profile</text>
+<text x="390" y="99" text-anchor="middle" font-size="10.5" fill="#555">target level · GPA · IELTS status · destinations · fields</text>
+<line x1="390" y1="114" x2="390" y2="150" stroke="#26736b" stroke-width="1.8" marker-end="url(#arr-match)"/>
+<rect x="190" y="154" width="400" height="64" rx="8" fill="#eef5f4" stroke="#26736b" stroke-width="1.5"/>
+<text x="390" y="180" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#12433d">2 · Normalize GPA → 4.0 equivalent</text>
+<text x="390" y="203" text-anchor="middle" font-size="10.5" fill="#555">scales: 4.0 / 5.0 / 10.0 / percentage / BS marks (obtained vs total)</text>
+<line x1="390" y1="218" x2="390" y2="254" stroke="#26736b" stroke-width="1.8" marker-end="url(#arr-match)"/>
+<rect x="190" y="258" width="400" height="64" rx="8" fill="#eef5f4" stroke="#26736b" stroke-width="1.5"/>
+<text x="390" y="284" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#12433d">3 · IELTS tier cap</text>
+<text x="390" y="307" text-anchor="middle" font-size="10.5" fill="#555">not taking → 0 · targeting 6 → 1 · targeting 7 → 2 · targeting 8 → 3</text>
+<text x="602" y="290" font-size="9.5" font-style="italic" fill="#8a6420">config flag:</text>
+<text x="602" y="304" font-size="9.5" font-style="italic" fill="#8a6420">SEVEN_PLUS_SEES_ALL</text>
+<line x1="390" y1="322" x2="390" y2="358" stroke="#26736b" stroke-width="1.8" marker-end="url(#arr-match)"/>
+<rect x="190" y="362" width="400" height="64" rx="8" fill="#eef5f4" stroke="#26736b" stroke-width="1.5"/>
+<text x="390" y="388" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#12433d">4 · GPA tier cap (by degree level)</text>
+<text x="390" y="411" text-anchor="middle" font-size="10.5" fill="#555">UG: 3.0 / 3.5   ·   Master: 3.2 / 3.6   ·   PhD: 3.4 / 3.7</text>
+<line x1="390" y1="426" x2="390" y2="462" stroke="#26736b" stroke-width="1.8" marker-end="url(#arr-match)"/>
+<rect x="190" y="466" width="400" height="64" rx="8" fill="#26736b" stroke="#1f5a53" stroke-width="1.5"/>
+<text x="390" y="492" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#ffffff">5 · Final tier cap = min(IELTS, GPA)</text>
+<text x="390" y="515" text-anchor="middle" font-size="10.5" fill="#d9efec">cap 0 → zero matches regardless of GPA (transparent to the student)</text>
+<line x1="390" y1="530" x2="390" y2="566" stroke="#26736b" stroke-width="1.8" marker-end="url(#arr-match)"/>
+<rect x="190" y="570" width="400" height="64" rx="8" fill="#eef5f4" stroke="#26736b" stroke-width="1.5"/>
+<text x="390" y="596" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#12433d">6 · Filter catalog (9,338 active rows)</text>
+<text x="390" y="619" text-anchor="middle" font-size="10.5" fill="#555">level match + tier ≤ cap + host country + field of study (General counts)</text>
+<line x1="390" y1="634" x2="390" y2="670" stroke="#26736b" stroke-width="1.8" marker-end="url(#arr-match)"/>
+<rect x="190" y="674" width="400" height="64" rx="8" fill="#eef5f4" stroke="#26736b" stroke-width="1.5"/>
+<text x="390" y="700" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#12433d">7 · Rank results</text>
+<text x="390" y="723" text-anchor="middle" font-size="10.5" fill="#555">selection ratio ↓  →  nearest deadline  →  total funding score ↓</text>
+<line x1="390" y1="738" x2="390" y2="774" stroke="#26736b" stroke-width="1.8" marker-end="url(#arr-match)"/>
+<rect x="190" y="778" width="400" height="64" rx="8" fill="#eef5f4" stroke="#26736b" stroke-width="1.5"/>
+<text x="390" y="804" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#12433d">8 · Output — matched list</text>
+<text x="390" y="827" text-anchor="middle" font-size="10.5" fill="#555">chance label · facets · plan cap (30 free / 100 pro) · pagination</text>
+<text x="602" y="804" font-size="9.5" font-style="italic" fill="#8a6420">target &lt; 500 ms</text>
+<text x="602" y="818" font-size="9.5" font-style="italic" fill="#8a6420">for 10k rows (NFR)</text>
+</svg>

@@ -103,7 +103,7 @@ async def import_scholarships(
         raise HTTPException(
             status_code=413, detail="CSV exceeds the 25 MB upload limit", headers={"X-Error-Code": "CSV_TOO_LARGE"}
         )
-    default_data_dir = Path(__file__).resolve().parents[3] / "data"
+    default_data_dir = Path(__file__).resolve().parents[2] / "data"
     map_path = Path(os.getenv("DATA_DIR", str(default_data_dir))) / "university_country_map.csv"
     with TemporaryDirectory() as directory:
         csv_path = Path(directory) / "upload.csv"
