@@ -1,4 +1,4 @@
-import pytest
+﻿import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -9,6 +9,7 @@ from app.core.security import hash_password
 from app.db.base import Base
 from app.main import app
 from app.models import User
+from app.tests.helpers import apply_csrf
 
 
 @pytest.fixture
@@ -23,6 +24,7 @@ def client():
 
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as test_client:
+        apply_csrf(test_client)
         yield test_client
     app.dependency_overrides.clear()
     engine.dispose()
@@ -51,6 +53,27 @@ def test_register_me_refresh_and_logout(client: TestClient) -> None:
     logout_response = client.post("/api/auth/logout")
     assert logout_response.status_code == 200
     assert client.get("/api/auth/me").status_code == 401
+
+
+def test_logout_revokes_stolen_access_token(client: TestClient) -> None:
+    client.post(
+        "/api/auth/register",
+        json={
+            "email": "revoked@example.com",
+            "password": "a-strong-test-password",
+            "full_name": "Revoked Student",
+        },
+    )
+    stolen_access = client.cookies.get("access_token")
+    assert stolen_access
+    assert client.get("/api/auth/me").status_code == 200
+
+    assert client.post("/api/auth/logout").status_code == 200
+
+    client.cookies.delete("access_token")
+    response = client.get("/api/auth/me", headers={"Authorization": f"Bearer {stolen_access}"})
+    assert response.status_code == 401
+    assert response.json()["code"] == "AUTH_REVOKED"
 
 
 def test_invalid_credentials_use_standard_error_shape(client: TestClient) -> None:

@@ -10,6 +10,7 @@ from app.core.deps import get_current_user, get_db
 from app.models import Profile, Scholarship, User
 from app.schemas.profile import MatchRequest, ProfileUpdate
 from app.services.matching import final_tier_cap, match_scholarships, result_facets
+from app.services.settings import free_result_limit
 
 router = APIRouter(prefix="/api/scholarships", tags=["scholarships"])
 
@@ -179,7 +180,7 @@ def match(payload: MatchRequest, db: Session = Depends(get_db), user: User = Dep
     candidates = db.scalars(select(Scholarship).where(Scholarship.is_active.is_(True))).all()
     matches = match_scholarships(list(candidates), profile)
     total = len(matches)
-    limit = 30 if user.plan == "free" else 100
+    limit = free_result_limit(db) if user.plan == "free" else 100
     start = (payload.page - 1) * payload.page_size
     page_items = matches[start : min(start + payload.page_size, limit)] if start < limit else []
     return {

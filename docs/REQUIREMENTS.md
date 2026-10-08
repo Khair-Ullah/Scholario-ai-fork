@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **Document version** | 1.0 |
-| **Date** | 2026-10-07 |
+| **Document version** | 1.1 |
+| **Date** | 2026-10-08 |
 | **Status** | Draft for review |
 | **Project** | Scholario — AI-Powered Scholarship Discovery & Application Workspace |
 | **Primary users** | Students from Pakistan applying for scholarships abroad |
@@ -102,7 +102,7 @@ Priority: **M** = Must (core), **S** = Should (important), **C** = Could (nice t
 | FR-001 | Register with full name, email, and password (min 8 chars) with unique-email enforcement. | M |
 | FR-002 | Authenticate via email + password and establish a signed session. | M |
 | FR-003 | Issue two HttpOnly cookies: access token (30 min, path `/`) and refresh token (14 days, path `/api/auth`). | M |
-| FR-004 | Rotate refresh tokens on every refresh; store SHA-256 hashes server-side with revoke support (logout, password change, account deletion). | M |
+| FR-004 | Rotate refresh tokens on every refresh; store SHA-256 hashes server-side with revoke support (logout, password change, account deletion). Denylist the access token `jti` on logout so it is rejected immediately (`AUTH_REVOKED`). | M |
 | FR-005 | Provide a separate admin login that rejects non-admin accounts (`AUTH_ADMIN_REQUIRED`). | M |
 | FR-006 | Let students view their profile, change password (revoking all sessions), and delete their own account with data cascade. | M |
 
@@ -301,7 +301,7 @@ Origin country, funding preference, and nice-to-have preferences are **stored bu
 
 | Interface | Description |
 |---|---|
-| Browser UI | Served by Next.js on port 3000; protected routes redirect to `/login` when unauthenticated. |
+| Browser UI | Served by Next.js on port 3000; protected routes redirect to `/login` when unauthenticated. A dead session (refresh rejected) clears the cookies and redirects to `/login`, or `/admin/login` on admin routes, once per expiry. |
 | JSON API | FastAPI on port 8000; OpenAPI documentation at `/docs`; machine-readable error codes. |
 | CSV import | Admin upload ≤ 25 MB or CLI script; files under `backend/data/`. |
 | AI providers | Pluggable adapters via backend environment variables (default: offline mock). |
@@ -317,8 +317,8 @@ Origin country, funding preference, and nice-to-have preferences are **stored bu
 | Frontend | Next.js 16 App Router, TypeScript (strict), Tailwind CSS 4, TipTap 3, React Hook Form, TanStack Query, Zustand, Recharts |
 | Backend | FastAPI, SQLAlchemy 2 (typed ORM), Pydantic v2, Alembic, Uvicorn |
 | Database | SQLite (dev) / PostgreSQL (prod) via `DATABASE_URL` |
-| Auth | JWT HS256 (python-jose) + bcrypt (passlib), HttpOnly cookie flow with rotation |
-| Testing | pytest + httpx (43 tests), coverage gate 80%, Ruff; ESLint + `next build` |
+| Auth | JWT HS256 (python-jose) + bcrypt (passlib), HttpOnly cookie flow with rotation and logout-time access-token denylist |
+| Testing | pytest + httpx (70 tests), coverage gate 80%, Ruff; ESLint + `tsc --noEmit` + `next build` |
 | Deployment | Docker Compose (backend :8000, frontend :3000), healthchecks, named volumes |
 | Data | pandas CSV importer; 9,338 rows × 53 columns; 844-university country map |
 | CI/CD | GitHub Actions — Python 3.12 backend job, Node 22 frontend job |

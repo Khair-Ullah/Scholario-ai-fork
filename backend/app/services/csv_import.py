@@ -192,33 +192,97 @@ def import_country_map(session: Session, path: Path) -> dict[str, int]:
     return report
 
 
-def import_csv(session: Session, file_path: Path, country_map_path: Path, chunk_size: int = 500) -> dict[str, int]:
+def import_csv(
+    session: Session,
+    file_path: Path,
+    country_map_path: Path,
+    chunk_size: int = 500,
+    dry_run: bool = False,
+) -> dict[str, Any]:
     countries = read_country_map(country_map_path)
     for mapping in session.scalars(select(UniversityCountry)).all():
         countries[mapping.university_name] = mapping.host_country
-    report = {"rows_read": 0, "inserted": 0, "updated": 0, "skipped": 0, "unknown_country": 0, "warnings": 0}
+    report: dict[str, Any] = {
+        "rows_read": 0,
+        "inserted": 0,
+        "updated": 0,
+        "skipped": 0,
+        "unknown_country": 0,
+        "warnings": 0,
+        "errors": [],
+        "preview": [],
+        "would_insert": 0,
+        "would_update": 0,
+        "dry_run": dry_run,
+    }
+    seen_ids: set[str] = set()
     with file_path.open(encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle)
+        if not reader.fieldnames:
+            report["errors"].append("CSV has no header row")
+            return report
         for row in reader:
             report["rows_read"] += 1
-            cleaned = clean_source_row(row, countries)
+            try:
+                cleaned = clean_source_row(row, countries)
+            except Exception as exc:  # noqa: BLE001 - surface row-level problems to the admin
+                report["errors"].append(f"row {report['rows_read']}: {exc}")
+                continue
             if not cleaned["scholarship_id"]:
                 report["skipped"] += 1
+                report["errors"].append(f"row {report['rows_read']}: missing scholarship_id")
                 continue
+            if cleaned["scholarship_id"] in seen_ids:
+                report["skipped"] += 1
+                report["errors"].append(
+                    f"row {report['rows_read']}: duplicate scholarship_id {cleaned['scholarship_id']}"
+                )
+                continue
+            seen_ids.add(cleaned["scholarship_id"])
             if cleaned["host_country"] == "Unknown":
                 report["unknown_country"] += 1
             if row.get("IELTS_required", "").strip().lower() in {"true", "y"} and not cleaned["ielts_band"]:
                 report["warnings"] += 1
+            if len(report["preview"]) < 20:
+                report["preview"].append(
+                    {
+                        key: cleaned[key]
+                        for key in (
+                            "scholarship_id",
+                            "title",
+                            "university_name",
+                            "host_country",
+                            "level",
+                            "scholarship_type",
+                            "ielts_required",
+                            "ielts_band",
+                            "deadline_date",
+                            "is_active",
+                        )
+                        if key in cleaned
+                    }
+                )
             existing = session.get(Scholarship, cleaned["scholarship_id"])
             if existing is None:
-                session.add(Scholarship(**cleaned))
-                report["inserted"] += 1
+                if dry_run:
+                    report["would_insert"] += 1
+                    report["inserted"] += 1
+                else:
+                    session.add(Scholarship(**cleaned))
+                    report["inserted"] += 1
             else:
-                for key, value in cleaned.items():
-                    if key != "application_url" or value is not None:
-                        setattr(existing, key, value)
-                report["updated"] += 1
-            if report["rows_read"] % chunk_size == 0:
+                if dry_run:
+                    report["would_update"] += 1
+                    report["updated"] += 1
+                else:
+                    for key, value in cleaned.items():
+                        if key != "application_url" or value is not None:
+                            setattr(existing, key, value)
+                    report["updated"] += 1
+            if not dry_run and report["rows_read"] % chunk_size == 0:
                 session.commit()
-    session.commit()
+    if dry_run:
+        session.rollback()
+    else:
+        session.commit()
     return report

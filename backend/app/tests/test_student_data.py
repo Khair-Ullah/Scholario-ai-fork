@@ -8,6 +8,7 @@ from app.core.deps import get_db
 from app.db.base import Base
 from app.main import app
 from app.models import Scholarship
+from app.tests.helpers import apply_csrf
 
 
 @pytest.fixture
@@ -48,6 +49,7 @@ def client():
         )
         session.commit()
     with TestClient(app) as test_client:
+        apply_csrf(test_client)
         yield test_client
     app.dependency_overrides.clear()
     engine.dispose()
@@ -67,7 +69,12 @@ def test_saved_scholarship_is_private_per_user(client: TestClient) -> None:
     assert len(client.get("/api/saved").json()) == 1
 
     client.cookies.clear()
+    from app.tests.helpers import apply_csrf, reset_csrf
+
+    reset_csrf(client)
+    apply_csrf(client)
     register(client, "second@example.com")
+    apply_csrf(client)
     assert client.get("/api/saved").json() == []
     assert client.delete("/api/saved/PRIVATE-1").status_code == 200
 
@@ -83,7 +90,12 @@ def test_tracker_updates_and_cannot_be_read_by_another_user(client: TestClient) 
     )
 
     client.cookies.clear()
+    from app.tests.helpers import apply_csrf, reset_csrf
+
+    reset_csrf(client)
+    apply_csrf(client)
     register(client, "other@example.com")
+    apply_csrf(client)
     assert client.get("/api/applications").json() == []
     assert client.patch(f"/api/applications/{application_id}", json={"status": "accepted"}).status_code == 404
 

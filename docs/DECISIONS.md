@@ -19,3 +19,5 @@ Decisions from the master build prompt:
 - Milestone 1 uses a minimal health endpoint and landing page; product workflows are delivered in subsequent milestones.
 - Database university-country rows are authoritative after initial CSV seeding, so administrator corrections survive later scholarship re-imports.
 - Use Next.js 16 and Tailwind 4 with the patched Tiptap 3 line; the production dependency audit is kept at zero known vulnerabilities.
+- Access tokens are revoked server-side with a `jti` denylist (`revoked_access_tokens`) written on logout and checked in `get_current_user`, so logout invalidates a copied access token immediately instead of waiting for its 30-minute expiry; expired rows are purged opportunistically.
+- On session expiry the API client clears the cookies via `POST /api/auth/logout` before redirecting to `/login` (admin routes: `/admin/login`), which keeps the cookie-presence middleware from bouncing the user back, and a `sessionStorage` flag ensures only one redirect per expiry.

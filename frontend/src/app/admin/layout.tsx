@@ -4,13 +4,20 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Activity,
+  Bell,
+  CreditCard,
   Database,
+  FileText,
+  FileSpreadsheet,
   LayoutDashboard,
   LogOut,
+  Menu,
+  ScrollText,
+  Settings,
   ShieldCheck,
   Users,
   X,
-  FileSpreadsheet,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
@@ -19,7 +26,21 @@ const adminLinks = [
   { href: "/admin/scholarships", label: "Scholarships", icon: FileSpreadsheet },
   { href: "/admin/data-quality", label: "Data quality", icon: Database },
   { href: "/admin/users", label: "Users", icon: Users },
+  { href: "/admin/templates", label: "Templates", icon: FileText },
+  { href: "/admin/announcements", label: "Announcements", icon: Bell },
+  { href: "/admin/payments", label: "Payments", icon: CreditCard },
+  { href: "/admin/audit", label: "Audit log", icon: ScrollText },
+  { href: "/admin/ai", label: "AI activity", icon: Activity },
+  { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
+
+const labels = Object.fromEntries(adminLinks.map((link) => [link.href, link.label]));
+
+let mePromise: Promise<{ role: string }> | null = null;
+const loadMe = () => {
+  if (!mePromise) mePromise = apiFetch<{ role: string }>("/api/auth/me");
+  return mePromise;
+};
 
 export default function AdminLayout({
   children,
@@ -34,14 +55,15 @@ export default function AdminLayout({
       return;
     }
     let active = true;
-    apiFetch<{ role: string }>("/api/auth/me")
+    loadMe()
       .then((user) => {
-        if (user.role === "admin") {
-          if (active) setAllowed(true);
-        }
+        if (!active) return;
+        if (user.role === "admin") setAllowed(true);
         else router.replace("/admin/login");
       })
-      .catch(() => router.replace("/admin/login"))
+      .catch(() => {
+        if (active) router.replace("/admin/login");
+      })
       .finally(() => {
         if (active) setChecking(false);
       });
@@ -64,6 +86,8 @@ export default function AdminLayout({
       router.replace("/admin/login");
     }
   }
+
+  const crumbs = pathname.slice("/admin".length).split("/").filter(Boolean);
 
   return (
     <div className="admin-shell">
@@ -94,7 +118,7 @@ export default function AdminLayout({
       </aside>
       {mobileOpen && (
         <button
-          className="admin-scrim"
+          className="admin-scrim admin-scrim-solid"
           aria-label="Close admin navigation"
           onClick={() => setMobileOpen(false)}
         >
@@ -108,12 +132,20 @@ export default function AdminLayout({
             onClick={() => setMobileOpen(!mobileOpen)}
             aria-label="Toggle admin menu"
           >
-            ☰
+            <Menu size={18} />
           </button>
-          <span>
-            ADMINISTRATION /{" "}
-            <strong>{pathname.split("/").at(-1)?.replaceAll("-", " ")}</strong>
-          </span>
+          <nav className="admin-breadcrumbs" aria-label="Breadcrumb">
+            <span>Administration</span>
+            {crumbs.map((crumb) => (
+              <span key={crumb}>
+                <span className="admin-breadcrumb-sep">/</span>
+                <strong>
+                  {labels[`/admin/${crumbs.join("/")}`] ??
+                    crumb.replaceAll("-", " ")}
+                </strong>
+              </span>
+            ))}
+          </nav>
           <span className="admin-role-chip">Administrator</span>
         </header>
         <main className="admin-content">{children}</main>

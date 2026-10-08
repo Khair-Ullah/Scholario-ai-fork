@@ -25,7 +25,8 @@
 <text x="135" y="304" text-anchor="middle" font-size="10" fill="#555">catalog · users · CSV import</text>
 <rect x="240" y="262" width="180" height="56" rx="6" fill="#ffffff" stroke="#9cc3be"/>
 <text x="330" y="284" text-anchor="middle" font-size="11.5" font-weight="bold" fill="#12433d">Auth &amp; API client</text>
-<text x="330" y="304" text-anchor="middle" font-size="10" fill="#555">401 → silent refresh → retry</text>
+<text x="330" y="302" text-anchor="middle" font-size="10" fill="#555">401 → silent refresh → retry</text>
+<text x="330" y="314" text-anchor="middle" font-size="9" fill="#555">refresh dead → logout → /login</text>
 <rect x="45" y="334" width="375" height="44" rx="6" fill="#ffffff" stroke="#9cc3be"/>
 <text x="232" y="361" text-anchor="middle" font-size="11" font-weight="bold" fill="#12433d">Protected-route middleware (redirect → /login)</text>
 <text x="232" y="412" text-anchor="middle" font-size="10" font-style="italic" fill="#555">Tailwind CSS 4 · TipTap editor · TypeScript strict</text>
@@ -44,7 +45,7 @@
 <text x="805" y="284" text-anchor="middle" font-size="11.5" font-weight="bold" fill="#12433d">Pydantic v2 schemas</text>
 <text x="805" y="304" text-anchor="middle" font-size="10" fill="#555">validation · X-Error-Code</text>
 <rect x="520" y="334" width="375" height="44" rx="6" fill="#ffffff" stroke="#9cc3be"/>
-<text x="707" y="361" text-anchor="middle" font-size="11" font-weight="bold" fill="#12433d">Alembic migrations (8 revisions · auto-run on start)</text>
+<text x="707" y="361" text-anchor="middle" font-size="11" font-weight="bold" fill="#12433d">Alembic migrations (10 revisions · auto-run on start)</text>
 <text x="707" y="412" text-anchor="middle" font-size="10" font-style="italic" fill="#555">Uvicorn · CORS allowlist · global error handler</text>
 <path d="M 620 440 V 462 H 165 V 480" fill="none" stroke="#26736b" stroke-width="1.6" marker-end="url(#arr-arch)"/>
 <path d="M 660 440 V 472 H 457 V 480" fill="none" stroke="#26736b" stroke-width="1.6" marker-end="url(#arr-arch)"/>
@@ -55,7 +56,7 @@
 <rect x="25" y="480" width="280" height="100" rx="8" fill="#eef5f4" stroke="#26736b" stroke-width="1.6"/>
 <text x="165" y="508" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#1f5a53">Data store</text>
 <text x="165" y="530" text-anchor="middle" font-size="10.5" fill="#444">SQLite (dev) / PostgreSQL (prod)</text>
-<text x="165" y="550" text-anchor="middle" font-size="10.5" fill="#444">13 tables · users, scholarships,</text>
+<text x="165" y="550" text-anchor="middle" font-size="10.5" fill="#444">17 tables · users, scholarships,</text>
 <text x="165" y="568" text-anchor="middle" font-size="10.5" fill="#444">applications, documents, chat…</text>
 <rect x="330" y="480" width="255" height="100" rx="8" fill="#eef5f4" stroke="#26736b" stroke-width="1.6"/>
 <text x="457" y="508" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#1f5a53">backend/data (CSV)</text>

@@ -6,10 +6,14 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.csrf import CSRF_COOKIE, new_csrf_token, set_csrf_cookie
 from app.core.deps import get_current_user, get_db
+from app.core.ratelimit import limiter
 from app.core.security import create_token, decode_token, hash_password, hash_token, verify_password
 from app.models import RefreshToken, User
 from app.schemas.user import AuthResponse, LoginRequest, UserCreate, UserPublic
+from app.services.audit import log_audit, request_ip
+from app.services.token_blocklist import purge_expired, revoke_access_claims
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 ACCESS_MINUTES = int(os.getenv("ACCESS_TOKEN_MINUTES", "30"))
@@ -73,6 +77,7 @@ def _authenticate(
 
 
 @router.post("/register", response_model=AuthResponse, status_code=201)
+@limiter.limit("5/minute")
 def register(payload: UserCreate, request: Request, response: Response, db: Session = Depends(get_db)) -> AuthResponse:
     email = str(payload.email).lower()
     if db.scalar(select(User.id).where(User.email == email)):
@@ -102,15 +107,47 @@ def register(payload: UserCreate, request: Request, response: Response, db: Sess
 
 
 @router.post("/login", response_model=AuthResponse)
+@limiter.limit("5/minute")
 def login(payload: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)) -> AuthResponse:
     return _authenticate(db, request, response, payload)
 
 
 @router.post("/admin/login", response_model=AuthResponse)
+@limiter.limit("3/minute")
 def admin_login(
     payload: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)
 ) -> AuthResponse:
-    return _authenticate(db, request, response, payload, admin_only=True)
+    try:
+        result = _authenticate(db, request, response, payload, admin_only=True)
+    except HTTPException:
+        log_audit(
+            db,
+            actor=None,
+            action="auth.admin_login_failed",
+            entity="auth",
+            actor_email=str(payload.email).lower(),
+            ip=request_ip(request),
+            commit=True,
+        )
+        raise
+    user = db.get(User, result.user.id)
+    log_audit(
+        db,
+        actor=user,
+        action="auth.admin_login",
+        entity="user",
+        entity_id=user.id,
+        ip=request_ip(request),
+        commit=True,
+    )
+    return result
+
+
+@router.get("/csrf")
+def csrf_token(request: Request, response: Response) -> dict[str, str]:
+    token = request.cookies.get(CSRF_COOKIE) or new_csrf_token()
+    set_csrf_cookie(response, token)
+    return {"token": token}
 
 
 @router.get("/me", response_model=UserPublic)
@@ -149,7 +186,9 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)) 
         stored = db.scalar(select(RefreshToken).where(RefreshToken.token_hash == hash_token(token)))
         if stored:
             stored.revoked = True
-            db.commit()
+    revoke_access_claims(db, decode_token(request.cookies.get("access_token", "")))
+    purge_expired(db)
+    db.commit()
     response.delete_cookie("access_token", path="/")
     response.delete_cookie("refresh_token", path="/api/auth")
     return {"message": "Signed out"}

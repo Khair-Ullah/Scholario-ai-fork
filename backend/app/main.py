@@ -2,8 +2,19 @@ import os
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
+from app.core.csrf import (
+    CSRF_COOKIE,
+    UNSAFE_METHODS,
+    csrf_token_is_valid,
+    new_csrf_token,
+    response_already_sets_csrf_cookie,
+    set_csrf_cookie,
+)
+from app.core.ratelimit import limiter, rate_limit_exceeded_handler
 from app.routers.admin import router as admin_router
 from app.routers.ai import router as ai_router
 from app.routers.auth import router as auth_router
@@ -23,6 +34,36 @@ app = FastAPI(
     version="0.1.0",
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
+
+@app.middleware("http")
+async def csrf_middleware(request: Request, call_next) -> Response:
+    if request.method in UNSAFE_METHODS and not csrf_token_is_valid(request):
+        return JSONResponse(
+            status_code=403,
+            content={"detail": "CSRF token missing or invalid", "code": "CSRF_FAILED"},
+        )
+    response = await call_next(request)
+    if CSRF_COOKIE not in request.cookies and not response_already_sets_csrf_cookie(response):
+        set_csrf_cookie(response, new_csrf_token())
+    return response
+
+
+app.add_middleware(SlowAPIMiddleware)
+
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next) -> Response:
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    return response
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=os.getenv("FRONTEND_ORIGINS", "http://localhost:3000").split(","),
@@ -30,6 +71,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 app.include_router(auth_router)
 app.include_router(onboarding_router)
 app.include_router(scholarships_router)

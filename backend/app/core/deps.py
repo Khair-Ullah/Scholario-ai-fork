@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.security import decode_token
 from app.db.session import SessionLocal
 from app.models import User
+from app.services.token_blocklist import is_access_revoked
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -27,6 +28,13 @@ def get_current_user(
             status_code=401,
             detail="Authentication required",
             headers={"WWW-Authenticate": "Bearer", "X-Error-Code": "AUTH_REQUIRED"},
+        )
+    jti = claims.get("jti")
+    if isinstance(jti, str) and jti and is_access_revoked(db, jti):
+        raise HTTPException(
+            status_code=401,
+            detail="Session has been signed out",
+            headers={"WWW-Authenticate": "Bearer", "X-Error-Code": "AUTH_REVOKED"},
         )
     try:
         user_id = int(claims["sub"])

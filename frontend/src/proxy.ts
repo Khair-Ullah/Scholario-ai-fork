@@ -24,6 +24,13 @@ export function proxy(request: NextRequest) {
   );
   const hasSession = request.cookies.has("access_token");
 
+  const isAdminRoute = path === "/admin" || path.startsWith("/admin/");
+  if (isAdminRoute && path !== "/admin/login" && !hasSession) {
+    const login = new URL("/admin/login", request.url);
+    login.searchParams.set("next", path);
+    return NextResponse.redirect(login);
+  }
+
   if (protectedRoute && !hasSession) {
     const login = new URL("/login", request.url);
     login.searchParams.set("next", path);

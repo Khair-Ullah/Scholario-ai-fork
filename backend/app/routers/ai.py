@@ -1,9 +1,10 @@
 import bleach
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, get_db
+from app.core.ratelimit import limiter
 from app.models import ChatMessage, ChatSession, Profile, Scholarship, Template, User
 from app.schemas.ai import ChatRequest, FillTemplateRequest, ImproveTextRequest, SopReviewRequest
 from app.services.ai.prompts import ADVISOR_SYSTEM, IMPROVE_SYSTEM, SOP_REVIEW_SYSTEM
@@ -13,7 +14,10 @@ router = APIRouter(prefix="/api/ai", tags=["AI tools"])
 
 
 @router.get("/sessions")
-def list_sessions(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> list[dict]:
+@limiter.limit("20/minute")
+def list_sessions(
+    request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+) -> list[dict]:
     sessions = db.scalars(
         select(ChatSession).where(ChatSession.user_id == user.id).order_by(ChatSession.updated_at.desc())
     ).all()
@@ -24,7 +28,10 @@ def list_sessions(db: Session = Depends(get_db), user: User = Depends(get_curren
 
 
 @router.get("/sessions/{session_id}")
-def get_session(session_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+@limiter.limit("20/minute")
+def get_session(
+    session_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+) -> dict:
     session = db.scalar(select(ChatSession).where(ChatSession.id == session_id, ChatSession.user_id == user.id))
     if not session:
         raise HTTPException(
@@ -42,7 +49,10 @@ def get_session(session_id: int, db: Session = Depends(get_db), user: User = Dep
 
 
 @router.post("/chat")
-def chat(payload: ChatRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+@limiter.limit("20/minute")
+def chat(
+    payload: ChatRequest, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+) -> dict:
     session = None
     if payload.session_id:
         session = db.scalar(
@@ -85,8 +95,9 @@ def chat(payload: ChatRequest, db: Session = Depends(get_db), user: User = Depen
 
 
 @router.post("/sop-review")
+@limiter.limit("20/minute")
 def review_sop(
-    payload: SopReviewRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+    payload: SopReviewRequest, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ) -> dict:
     result = get_provider().review_sop(payload.text)
     result["provider"] = "mock"
@@ -95,8 +106,9 @@ def review_sop(
 
 
 @router.post("/improve-text")
+@limiter.limit("20/minute")
 def improve_text(
-    payload: ImproveTextRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+    payload: ImproveTextRequest, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ) -> dict[str, str]:
     return {
         "text": get_provider().improve_text(payload.text, payload.instruction),
@@ -106,8 +118,12 @@ def improve_text(
 
 
 @router.post("/fill-template")
+@limiter.limit("20/minute")
 def fill_template(
-    payload: FillTemplateRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+    payload: FillTemplateRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> dict[str, str]:
     template = db.scalar(select(Template).where(Template.slug == payload.slug, Template.is_active.is_(True)))
     if not template:
@@ -128,8 +144,9 @@ def fill_template(
 
 
 @router.post("/explain-scholarship/{scholarship_id}")
+@limiter.limit("20/minute")
 def explain_scholarship(
-    scholarship_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+    scholarship_id: str, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ) -> dict[str, str]:
     scholarship = db.get(Scholarship, scholarship_id)
     if not scholarship:
@@ -144,8 +161,9 @@ def explain_scholarship(
 
 
 @router.post("/eligibility-check")
+@limiter.limit("20/minute")
 def eligibility_check(
-    scholarship_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+    scholarship_id: str, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ) -> dict:
     scholarship = db.get(Scholarship, scholarship_id)
     profile = db.scalar(select(Profile).where(Profile.user_id == user.id))

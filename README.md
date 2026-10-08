@@ -76,6 +76,7 @@ Keep changes aligned with the master build prompt and record implementation deci
 - [ ] Step 15 — Lighthouse/accessibility review and SEO metadata verification
 - [ ] Step 16 — 80% service coverage, Playwright smoke flow, CI gates
 - [ ] Step 17 — Final deployment, payment, AI, and SRS documentation review
+- [x] Step 20 — Logout hardening: access-token denylist on logout and a global session-expiry redirect in the API client (2026-10-08)
 
 This is a substantial first implementation, not yet the complete acceptance-tested product. Remaining work is recorded in [docs/PROGRESS.md](docs/PROGRESS.md), including partial admin/billing features, an eight-template starter set, security follow-ups, and unavailable Docker Compose verification.
 

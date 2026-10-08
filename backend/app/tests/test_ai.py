@@ -1,4 +1,4 @@
-import pytest
+﻿import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -9,6 +9,7 @@ from app.db.base import Base
 from app.main import app
 from app.models import Scholarship
 from app.services.templates_seed import seed_templates
+from app.tests.helpers import apply_csrf
 
 
 @pytest.fixture
@@ -46,6 +47,7 @@ def client():
         )
         session.commit()
     with TestClient(app) as test_client:
+        apply_csrf(test_client)
         yield test_client
     app.dependency_overrides.clear()
     engine.dispose()
@@ -70,6 +72,10 @@ def test_advisor_uses_scholarship_data_and_persists_private_session(client: Test
     assert len(client.get(f"/api/ai/sessions/{session_id}").json()["messages"]) == 2
 
     client.cookies.clear()
+    from app.tests.helpers import apply_csrf, reset_csrf
+
+    reset_csrf(client)
+    apply_csrf(client)
     register(client, "other-advisor@example.com")
     assert client.get(f"/api/ai/sessions/{session_id}").status_code == 404
 

@@ -1,4 +1,4 @@
-import pytest
+﻿import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -8,6 +8,7 @@ from app.core.deps import get_db
 from app.db.base import Base
 from app.main import app
 from app.services.templates_seed import seed_templates
+from app.tests.helpers import apply_csrf
 
 
 @pytest.fixture
@@ -24,6 +25,7 @@ def client():
     with test_session() as session:
         seed_templates(session)
     with TestClient(app) as test_client:
+        apply_csrf(test_client)
         yield test_client
     app.dependency_overrides.clear()
     engine.dispose()
@@ -75,7 +77,12 @@ def test_user_cannot_read_or_change_another_users_document(client: TestClient) -
     document_id = created.json()["id"]
 
     client.cookies.clear()
+    from app.tests.helpers import apply_csrf, reset_csrf
+
+    reset_csrf(client)
+    apply_csrf(client)
     register(client, "visitor@example.com")
+    apply_csrf(client)
     assert client.get(f"/api/documents/{document_id}").status_code == 404
     assert client.put(f"/api/documents/{document_id}", json={"title": "Changed"}).status_code == 404
     assert client.get(f"/api/documents/{document_id}/export", params={"format": "txt"}).status_code == 404
