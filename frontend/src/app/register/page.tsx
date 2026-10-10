@@ -2,8 +2,9 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, GraduationCap } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
 export default function RegisterPage() {
@@ -38,9 +39,14 @@ export default function RegisterPage() {
   return (
     <main className="auth-layout">
       <Link className="brand auth-brand" href="/">
-        <span className="brand-mark">
-          <GraduationCap size={19} />
-        </span>{" "}
+        <Image
+          className="brand-logo"
+          src="/images/logo/logo.png"
+          alt="Scholario"
+          width={39}
+          height={36}
+          priority
+        />{" "}
         scholario<span className="brand-period">.</span>
       </Link>
       <Link className="back-home" href="/">
@@ -114,6 +120,16 @@ export default function RegisterPage() {
         </p>
       </section>
       <div className="auth-aside register-aside">
+        <div className="aside-cap register-cap">
+          <Image
+            className="aside-cap-img"
+            src="/images/design/cap.png"
+            alt=""
+            width={110}
+            height={100}
+            priority
+          />
+        </div>
         <span className="aside-index">
           YOUR PLAN, WITH A LITTLE MORE CLARITY
         </span>

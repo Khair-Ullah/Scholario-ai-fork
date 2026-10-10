@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, BookOpenCheck, ChevronDown, ClipboardCheck, Compass, FileText, GraduationCap, LayoutDashboard, LogOut, Menu, MessageCircle, Search, Settings2, X, Plane, Sparkles, UserPlus, CreditCard } from "lucide-react";
+import { Bell, BookOpenCheck, ChevronDown, ClipboardCheck, Compass, FileText, LayoutDashboard, LogOut, Menu, MessageCircle, Search, Settings2, X, Plane, Sparkles, UserPlus, CreditCard } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
 const links = [
@@ -34,7 +35,7 @@ export default function AppShell({ children }: Readonly<{ children: React.ReactN
     <div className="app-shell">
       {mobileOpen && <button className="sidebar-scrim" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />}
       <aside className={`app-sidebar ${mobileOpen ? "is-open" : ""}`}>
-        <Link className="brand shell-brand" href="/dashboard"><span className="brand-mark"><GraduationCap size={19} /></span> scholario<span className="brand-period">.</span></Link>
+        <Link className="brand shell-brand" href="/dashboard"><Image className="brand-logo" src="/images/logo/logo.png" alt="Scholario" width={39} height={36} /> scholario<span className="brand-period">.</span></Link>
         <p className="sidebar-label">YOUR WORKSPACE</p>
         <nav aria-label="Student workspace">
           {links.map(({ href, label, icon: Icon }) => <Link key={href} href={href} onClick={() => setMobileOpen(false)} className={`sidebar-link ${path === href || path.startsWith(`${href}/`) ? "active" : ""}`}><Icon size={17} strokeWidth={1.8} /><span>{label}</span></Link>)}

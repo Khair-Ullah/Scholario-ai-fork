@@ -1,4 +1,5 @@
-import { ArrowDownRight, ArrowUpRight, Compass, GraduationCap, Search } from "lucide-react";
+import { ArrowUpRight, Search } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 
 const steps = [
@@ -12,11 +13,11 @@ export default function HomePage() {
     <main>
       <header className="topbar">
         <Link className="brand" href="/" aria-label="Scholario home">
-          <span className="brand-mark"><GraduationCap size={20} strokeWidth={2.2} /></span>
+          <Image className="brand-logo" src="/images/logo/logo.png" alt="Scholario" width={39} height={36} priority />
           scholario<span className="brand-period">.</span>
         </Link>
         <nav aria-label="Main navigation">
-          <a href="#how-it-works">How it works</a>
+          <Link href="/how-it-works">How it works</Link>
           <a href="#opportunities">For students</a>
         </nav>
         <div className="public-actions">
@@ -34,13 +35,19 @@ export default function HomePage() {
           <div className="hero-note"><span className="note-rule" /> Built for ambitious students, starting from Pakistan.</div>
         </div>
 
-        <div className="hero-art" aria-label="Illustration of a student preparing an application">
+        <div className="hero-art" aria-label="Preview of the Scholario app">
           <div className="orbit orbit-one" />
           <div className="orbit orbit-two" />
-          <div className="art-stamp"><Compass size={19} /><span>YOUR<br />NEXT STEP</span></div>
-          <div className="paper paper-back"><span className="paper-caption">A WORLD OF POSSIBILITY</span><span className="paper-line line-short" /><span className="paper-line" /><span className="paper-line line-mid" /></div>
-          <div className="paper paper-front"><span className="paper-top"><span>01 / YOUR SHORTLIST</span><span className="paper-star">✳</span></span><span className="paper-title">Make room<br />for what’s next.</span><span className="paper-foot"><span className="paper-avatar">S</span><span>Scholarships<br /><strong>matched to you</strong></span><ArrowDownRight size={19} /></span></div>
-          <span className="art-caption">A more considered way to search.</span>
+          <div className="hero-flip">
+            <div className="hero-flip-inner">
+              <div className="hero-face">
+                <Image className="hero-visual" src="/images/design/nav.jpg" alt="Scholario app preview" width={768} height={1376} priority />
+              </div>
+              <div className="hero-face hero-face-back">
+                <Image className="hero-visual" src="/images/design/map.jpg" alt="Scholario destinations map" width={768} height={1376} />
+              </div>
+            </div>
+          </div>
         </div>
         <div className="hero-index"><span>01</span><span className="index-line" /><span>03</span></div>
       </section>
@@ -50,9 +57,10 @@ export default function HomePage() {
         <div className="steps-list">
           {steps.map((step) => <article className="step-row" key={step.number}><span className="step-number">{step.number}</span><div><h3>{step.title}</h3><p>{step.body}</p></div><ArrowUpRight size={17} className="step-arrow" /></article>)}
         </div>
+        <Link className="text-link" href="/how-it-works">See the full matching process <ArrowUpRight size={15} /></Link>
       </section>
 
-      <footer><Link className="brand footer-brand" href="/">scholario<span className="brand-period">.</span></Link><span>Thoughtful tools for your next chapter.</span><span>Built for students, with care.</span></footer>
+      <footer><Link className="brand footer-brand" href="/"><Image className="brand-logo" src="/images/logo/logo.png" alt="Scholario" width={30} height={28} />scholario<span className="brand-period">.</span></Link><span>Thoughtful tools for your next chapter.</span><span>Built for students, with care.</span></footer>
     </main>
   );
 }
