@@ -1,11 +1,16 @@
 import os
 
-from app.services.ai.base import AIProvider
+from app.services.ai.base import AIProvider, AIProviderError
+from app.services.ai.gemini_provider import GeminiProvider
 from app.services.ai.mock_provider import MockProvider
 
 
 def get_provider() -> AIProvider:
-    provider = os.getenv("AI_PROVIDER", "mock").lower()
+    provider = os.getenv("AI_PROVIDER", "mock").strip().lower()
     if provider == "mock":
         return MockProvider()
-    raise RuntimeError(f"AI provider '{provider}' is not configured in this scaffold; select AI_PROVIDER=mock")
+    if provider == "gemini":
+        return GeminiProvider()
+    raise AIProviderError(
+        f"AI provider '{provider}' is not configured; select AI_PROVIDER=mock or AI_PROVIDER=gemini"
+    )

@@ -14,6 +14,7 @@ export default function AdvisorPage() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [provider, setProvider] = useState("AI");
 
   async function refreshSessions() {
     try {
@@ -69,7 +70,7 @@ export default function AdvisorPage() {
     setMessage("");
     setMessages((current) => [...current, { role: "user", content: text }]);
     try {
-      const response = await apiFetch<{ session_id: number; message: Message }>(
+      const response = await apiFetch<{ session_id: number; message: Message; provider?: string }>(
         "/api/ai/chat",
         {
           method: "POST",
@@ -77,6 +78,7 @@ export default function AdvisorPage() {
         },
       );
       setSessionId(response.session_id);
+      setProvider(response.provider ?? "AI");
       setMessages((current) => [...current, response.message]);
       await refreshSessions();
     } catch (cause) {
@@ -126,7 +128,10 @@ export default function AdvisorPage() {
           <div>
             <p className="eyebrow">SCHOLARSHIP ADVISOR</p>
             <h1>A thoughtful place to ask.</h1>
-            <span>Demo AI · answers grounded in the scholarship catalogue</span>
+            <span>
+              {provider.startsWith("mock") ? "Demo AI" : provider === "gemini" ? "Gemini AI" : provider} · answers
+              grounded in the scholarship catalogue
+            </span>
           </div>
         </div>
         <div className="chat-thread">
@@ -191,7 +196,7 @@ export default function AdvisorPage() {
             <ArrowUp size={17} />
           </button>
           <small>
-            Demo AI can make mistakes. Verify requirements with the official
+            AI can make mistakes. Verify requirements with the official
             scholarship source.
           </small>
         </form>

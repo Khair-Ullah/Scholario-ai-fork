@@ -3,10 +3,11 @@ services:
     build:
       context: ./backend
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    env_file:
+      - ./backend/.env
     environment:
       DATABASE_URL: ${DATABASE_URL:-sqlite:////data/scholario.db}
       FRONTEND_ORIGINS: http://localhost:3000
-      AI_PROVIDER: ${AI_PROVIDER:-mock}
       DATA_DIR: /data
     ports:
       - "8000:8000"
