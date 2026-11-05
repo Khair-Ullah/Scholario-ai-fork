@@ -34,13 +34,15 @@ cp frontend/.env.example frontend/.env.local
 docker compose up --build
 ```
 
-Migrations and template seeding run automatically on backend start. Import the scholarship data once with `make seed`, then create the first admin with `make seed-admin EMAIL=admin@scholario.ai PASSWORD=your-password`.
+Migrations and template seeding run automatically on backend start. Import the scholarship data once with `make seed`, then create the first admin with `make seed-admin EMAIL=admin@scholario.ai PASSWORD=your-password`. Add consultant accounts with `make seed-consultant EMAIL=partner@example.com PASSWORD=your-password NAME="Partner Name"`.
 
 Open the frontend at <http://localhost:3000> and API docs at <http://localhost:8000/docs>. Health check: <http://localhost:8000/health>.
 
 For manual development, run `cd backend && python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt && python -m alembic upgrade head && python -m uvicorn app.main:app --reload` and, in another terminal, `cd frontend && npm ci && npm run dev`.
 
-Common commands are wrapped by the `Makefile`: `make up`, `make logs`, `make ps`, `make down`, `make seed`, `make test`.
+If you run the frontend on the host with `npm run dev`, start only the backend container with `make up-backend` (backend-only). Running `docker compose up` would also publish the frontend container on port 3000 and fail with `bind: Only one usage of each socket address` / `ports are not available`.
+
+Common commands are wrapped by the `Makefile`: `make up`, `make up-backend`, `make logs`, `make ps`, `make down`, `make seed`, `make test`.
 
 ## Environment variables
 
@@ -60,7 +62,7 @@ The billing module will use a provider interface and verified webhooks. See [doc
 
 ## Deployment and administration
 
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the planned deployment guide. Admin creation, scholarship import, and user management are upcoming milestones.
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the planned deployment guide. The platform has three roles: `student`, `consultant`, and `super_admin`. Super admins sign in at `/admin` and manage the catalogue, consultants, users, templates, announcements, payments, settings, audit, and warnings. Consultants sign in at `/consultant` and manage only the scholarships they own, view the students who engage with them, and acknowledge platform warnings. Consultant accounts are created by a super admin (panel or `make seed-consultant EMAIL=… PASSWORD=… NAME="…"`); staff logins support TOTP two-factor authentication.
 
 ## Testing and API
 
@@ -77,6 +79,7 @@ Keep changes aligned with the master build prompt and record implementation deci
 - [ ] Step 16 — 80% service coverage, Playwright smoke flow, CI gates
 - [ ] Step 17 — Final deployment, payment, AI, and SRS documentation review
 - [x] Step 20 — Logout hardening: access-token denylist on logout and a global session-expiry redirect in the API client (2026-10-08)
+- [x] Step 21 — Roles split (`student`/`consultant`/`super_admin`), scholarship ownership, `/consultant` workspace, TOTP 2FA with recovery codes, failed-login lockout, and suspicious-activity warnings (2026-10-10)
 
 This is a substantial first implementation, not yet the complete acceptance-tested product. Remaining work is recorded in [docs/PROGRESS.md](docs/PROGRESS.md), including partial admin/billing features, an eight-template starter set, security follow-ups, and unavailable Docker Compose verification.
 

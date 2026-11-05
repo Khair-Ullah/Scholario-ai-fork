@@ -33,9 +33,15 @@ def update_me(payload: ProfileUpdate, db: Session = Depends(get_db), user: User 
     for key, value in updates.items():
         setattr(profile, key, value)
     if profile.gpa_value is not None and profile.gpa_scale:
-        profile.gpa_4_equivalent = to_g4(profile.gpa_scale, profile.gpa_value)
+        try:
+            profile.gpa_4_equivalent = to_g4(profile.gpa_scale, profile.gpa_value)
+        except ValueError:
+            profile.gpa_4_equivalent = None
     elif profile.bs_marks_obtained is not None and profile.bs_marks_total:
-        profile.gpa_4_equivalent = bs_marks_to_g4(profile.bs_marks_obtained, profile.bs_marks_total)
+        try:
+            profile.gpa_4_equivalent = bs_marks_to_g4(profile.bs_marks_obtained, profile.bs_marks_total)
+        except ValueError:
+            profile.gpa_4_equivalent = None
     db.commit()
     db.refresh(user)
     return {"user": UserPublic.model_validate(user), "profile": jsonable_encoder(profile)}
@@ -50,10 +56,11 @@ def change_password(
             status_code=400, detail="Current password is incorrect", headers={"X-Error-Code": "PASSWORD_INVALID"}
         )
     user.password_hash = hash_password(payload.new_password)
+    user.token_version += 1
     for token in user.refresh_tokens:
         token.revoked = True
     db.commit()
-    return {"message": "Password updated. Sign in again on other devices."}
+    return {"message": "Password updated. Sign in again on all devices."}
 
 
 @router.delete("/me", status_code=204)

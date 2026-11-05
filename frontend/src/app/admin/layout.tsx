@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Activity,
+  AlertTriangle,
   Bell,
+  Briefcase,
   CreditCard,
   Database,
   FileText,
@@ -19,13 +22,15 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getMe, resetSessionCache } from "@/lib/api";
 
 const adminLinks = [
   { href: "/admin/dashboard", label: "Overview", icon: LayoutDashboard },
+  { href: "/admin/consultants", label: "Consultants", icon: Briefcase },
   { href: "/admin/scholarships", label: "Scholarships", icon: FileSpreadsheet },
   { href: "/admin/data-quality", label: "Data quality", icon: Database },
   { href: "/admin/users", label: "Users", icon: Users },
+  { href: "/admin/warnings", label: "Warnings", icon: AlertTriangle },
   { href: "/admin/templates", label: "Templates", icon: FileText },
   { href: "/admin/announcements", label: "Announcements", icon: Bell },
   { href: "/admin/payments", label: "Payments", icon: CreditCard },
@@ -35,12 +40,6 @@ const adminLinks = [
 ];
 
 const labels = Object.fromEntries(adminLinks.map((link) => [link.href, link.label]));
-
-let mePromise: Promise<{ role: string }> | null = null;
-const loadMe = () => {
-  if (!mePromise) mePromise = apiFetch<{ role: string }>("/api/auth/me");
-  return mePromise;
-};
 
 export default function AdminLayout({
   children,
@@ -55,10 +54,10 @@ export default function AdminLayout({
       return;
     }
     let active = true;
-    loadMe()
+    getMe()
       .then((user) => {
         if (!active) return;
-        if (user.role === "admin") setAllowed(true);
+        if (user.role === "super_admin") setAllowed(true);
         else router.replace("/admin/login");
       })
       .catch(() => {
@@ -80,6 +79,7 @@ export default function AdminLayout({
     );
 
   async function signOut() {
+    resetSessionCache();
     try {
       await apiFetch("/api/auth/logout", { method: "POST" });
     } finally {
@@ -93,10 +93,15 @@ export default function AdminLayout({
     <div className="admin-shell">
       <aside className={`admin-sidebar ${mobileOpen ? "is-open" : ""}`}>
         <Link href="/admin/dashboard" className="admin-brand">
-          <span>
-            <ShieldCheck size={18} />
-          </span>{" "}
-          scholario <small>ADMIN</small>
+          <Image
+            className="brand-logo"
+            src="/images/logo/logo.png"
+            alt="Scholario"
+            width={39}
+            height={36}
+          />
+          scholario<span className="brand-period">.</span>
+          <small>ADMIN</small>
         </Link>
         <p className="admin-nav-label">OPERATIONS</p>
         <nav>
@@ -146,7 +151,7 @@ export default function AdminLayout({
               </span>
             ))}
           </nav>
-          <span className="admin-role-chip">Administrator</span>
+          <span className="admin-role-chip">Super admin</span>
         </header>
         <main className="admin-content">{children}</main>
       </div>

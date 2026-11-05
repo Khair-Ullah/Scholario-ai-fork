@@ -9,7 +9,13 @@ All routes are JSON under `/api`, except `GET /health`. FastAPI interactive docs
 | GET | `/health` | Liveness check |
 | POST | `/api/auth/register` | Create a student and set access/refresh cookies |
 | POST | `/api/auth/login` | Student login |
-| POST | `/api/auth/admin/login` | Admin-only login |
+| POST | `/api/auth/admin/login` | Super-admin-only login (role `super_admin`) |
+| POST | `/api/auth/consultant/login` | Consultant-only login (role `consultant`) |
+| GET | `/api/auth/mfa/status` | 2FA enabled/pending state and recovery codes remaining |
+| POST | `/api/auth/mfa/setup` | Begin TOTP enrolment → `{secret, otpauth_uri}` |
+| POST | `/api/auth/mfa/enable` | Confirm a TOTP code and return one-time recovery codes |
+| POST | `/api/auth/mfa/disable` | Disable 2FA (requires a valid TOTP/recovery code) |
+| POST | `/api/auth/mfa/recovery-codes` | Regenerate recovery codes (requires a valid code) |
 | POST | `/api/auth/refresh` | Rotate a hashed, persisted refresh token |
 | POST | `/api/auth/logout` | Revoke the refresh token, denylist the access token (`jti`), and clear both cookies |
 | GET | `/api/auth/me`, `/api/users/me` | Current account and profile |
@@ -55,10 +61,25 @@ All routes are JSON under `/api`, except `GET /health`. FastAPI interactive docs
 | GET/PATCH | `/api/admin/universities/{name}/country` | Fix a university→country mapping (existing review endpoint) |
 | GET | `/api/admin/users` | Account list with `total`, `role`/`plan`/`is_active` filters, plan counts |
 | GET | `/api/admin/users/{id}` | Detail + profile + activity stats |
-| PATCH | `/api/admin/users/{id}` | Edit role (admin guards: `SELF_LOCKOUT`, `LAST_ADMIN`), plan, access |
+| PATCH | `/api/admin/users/{id}` | Edit role (`student`/`consultant`/`super_admin`), plan, access (guards: `SELF_LOCKOUT`, `LAST_SUPER_ADMIN`) |
 | GET | `/api/admin/users/{id}/sessions`, `…/onboarding` | Session list and onboarding state |
 | POST | `/api/admin/users/{id}/revoke-sessions` | Revoke all refresh tokens |
 | POST | `/api/admin/users/{id}/reset-onboarding` | Reset onboarding to step one |
+| GET/POST | `/api/admin/consultants` | List / create consultant accounts (`role=consultant`) |
+| PATCH | `/api/admin/consultants/{id}` | Update consultant name/plan/active (`404 CONSULTANT_NOT_FOUND`) |
+| POST | `/api/admin/consultants/{id}/warn` | Issue a manual warning (`info`/`warning`/`critical`) |
+| POST | `/api/admin/consultants/{id}/reset-2fa` | Clear a consultant's TOTP enrolment |
+| GET | `/api/admin/warnings` | Paginated warnings filtered by `consultant_id`, `severity`, `is_acknowledged` |
+| GET | `/api/consultant/stats` | Consultant-scoped dashboard metrics |
+| GET/POST | `/api/consultant/scholarships` | List / create the consultant's own scholarships |
+| GET/PATCH/DELETE | `/api/consultant/scholarships/{id}` | Read / edit / delete an owned scholarship (`404` for non-owners) |
+| POST | `/api/consultant/scholarships/bulk` | Bulk `activate`/`deactivate`/`delete` over owned scholarships |
+| GET | `/api/consultant/scholarships/export-csv` | Export the consultant's own scholarships as CSV |
+| GET | `/api/consultant/applicants`, `/api/consultant/applicants/{id}` | Students who saved/applied to owned scholarships (full profile) |
+| GET | `/api/consultant/warnings` | The consultant's own warnings |
+| POST | `/api/consultant/warnings/{id}/ack` | Acknowledge an own warning |
+| GET/PATCH | `/api/consultant/profile` | Consultant account and 2FA state |
+| POST | `/api/consultant/announcements` | Notify students of owned scholarships |
 | GET/POST | `/api/admin/templates` | List / create document templates |
 | GET/PATCH/DELETE | `/api/admin/templates/{id}` | Read / edit / delete a template (delete blocked → 409 `TEMPLATE_IN_USE`) |
 | POST | `/api/admin/templates/{id}/reorder` | Reorder templates by `sort_order` |
@@ -78,7 +99,8 @@ Every document/application/checklist/saved/chat/notification and all `/api/admin
 
 - Mutating requests (`POST/PATCH/PUT/DELETE`) must send the `csrftoken` cookie value in `X-CSRF-Token`; missing/mismatched tokens return `403 {"code":"CSRF_FAILED"}`.
 - Sensitive endpoints are rate-limited: `/api/auth/login`+`/api/auth/register` 5/min, `/api/auth/admin/login` 3/min, `/api/ai/*` 20/min, all others 60/min → `429 {"code":"RATE_LIMITED"}`.
-- Admin authorization is role-checked server-side (`require_admin`); the client proxy redirects unauthenticated `/admin/*` traffic to `/admin/login`.
+- Admin authorization is role-checked server-side (`require_super_admin`); consultant routes use `require_consultant`. The client proxy redirects unauthenticated `/admin/*` traffic to `/admin/login` and `/consultant/*` to `/consultant/login`.
+- Repeated failed sign-ins are lockout-tracked: 5 failures for the same email within 15 minutes return `429 {"code":"AUTH_LOCKED"}` until the window clears. Staff logins additionally require a valid TOTP code when 2FA is enabled (`401 MFA_REQUIRED` / `MFA_INVALID`).
 - Logout also denylists the presented access token's `jti` (`revoked_access_tokens`, purged at token expiry), so a copied `access_token` is rejected immediately with `401 {"code":"AUTH_REVOKED"}` instead of living out its 30-minute TTL.
 - The web client retries a `401` once after a silent `/api/auth/refresh`; if refresh fails it calls `POST /api/auth/logout` to clear cookies (prevents a middleware redirect loop) and navigates to `/login?next=…`, or `/admin/login` on admin routes.
 - Sensitive admin actions are captured in the audit log.

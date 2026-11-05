@@ -7,7 +7,9 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_current_user, get_db
 from app.models import Document, DocumentVersion, Scholarship, Template, User
 from app.schemas.document import DocumentCreate, DocumentUpdate
+from app.services.entitlements import is_pro
 from app.services.export import export_document
+from app.services.settings import free_document_limit
 
 router = APIRouter(prefix="/api", tags=["templates", "documents"])
 ALLOWED_TAGS = ["p", "br", "h1", "h2", "h3", "ul", "ol", "li", "b", "strong", "i", "em", "a", "blockquote"]
@@ -37,7 +39,7 @@ def get_template(slug: str, db: Session = Depends(get_db), user: User = Depends(
         raise HTTPException(
             status_code=404, detail="Template not found", headers={"X-Error-Code": "TEMPLATE_NOT_FOUND"}
         )
-    if item.is_premium and user.plan != "pro":
+    if item.is_premium and not is_pro(user):
         raise HTTPException(
             status_code=403, detail="This template requires a Pro plan", headers={"X-Error-Code": "PRO_REQUIRED"}
         )
@@ -55,9 +57,11 @@ def create_document(
     payload: DocumentCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ) -> dict:
     count = db.scalar(select(func.count(Document.id)).where(Document.user_id == user.id)) or 0
-    if user.plan == "free" and count >= 5:
+    if not is_pro(user) and count >= free_document_limit(db):
         raise HTTPException(
-            status_code=403, detail="Free plan allows five saved documents", headers={"X-Error-Code": "DOCUMENT_LIMIT"}
+            status_code=403,
+            detail=f"Free plan allows {free_document_limit(db)} saved documents",
+            headers={"X-Error-Code": "DOCUMENT_LIMIT"},
         )
     if payload.scholarship_id and not db.get(Scholarship, payload.scholarship_id):
         raise HTTPException(
@@ -68,7 +72,7 @@ def create_document(
         raise HTTPException(
             status_code=404, detail="Template not found", headers={"X-Error-Code": "TEMPLATE_NOT_FOUND"}
         )
-    if template and template.is_premium and user.plan != "pro":
+    if template and template.is_premium and not is_pro(user):
         raise HTTPException(
             status_code=403, detail="This template requires a Pro plan", headers={"X-Error-Code": "PRO_REQUIRED"}
         )
@@ -189,6 +193,13 @@ def duplicate_document(document_id: int, db: Session = Depends(get_db), user: Us
         raise HTTPException(
             status_code=404, detail="Document not found", headers={"X-Error-Code": "DOCUMENT_NOT_FOUND"}
         )
+    count = db.scalar(select(func.count(Document.id)).where(Document.user_id == user.id)) or 0
+    if not is_pro(user) and count >= free_document_limit(db):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Free plan allows {free_document_limit(db)} saved documents",
+            headers={"X-Error-Code": "DOCUMENT_LIMIT"},
+        )
     copy = Document(
         user_id=user.id,
         template_id=original.template_id,
@@ -223,7 +234,9 @@ def export(
             status_code=404, detail="Document not found", headers={"X-Error-Code": "DOCUMENT_NOT_FOUND"}
         )
     data, media_type, filename = export_document(document.content_html, document.title, format)
-    return Response(data, media_type=media_type, headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+    safe_filename = "".join(char for char in filename if char not in '\\"\r\n').strip() or "document"
+    headers = {"Content-Disposition": f'attachment; filename="{safe_filename}"'}
+    return Response(data, media_type=media_type, headers=headers)
 
 
 def _owned_document(db: Session, user_id: int, document_id: int) -> dict:

@@ -3,14 +3,15 @@ from urllib.parse import quote_plus
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, get_db
 from app.models import Profile, Scholarship, User
 from app.schemas.profile import MatchRequest, ProfileUpdate
+from app.services.entitlements import is_pro
 from app.services.matching import final_tier_cap, match_scholarships, result_facets
-from app.services.settings import free_result_limit
+from app.services.settings import free_result_limit, pro_result_limit
 
 router = APIRouter(prefix="/api/scholarships", tags=["scholarships"])
 
@@ -94,6 +95,27 @@ def browse(
         query = query.where(Scholarship.deadline_date <= deadline_before)
     if q:
         query = query.where(Scholarship.search_text.contains(q.strip().lower()))
+    sql_sorts = {
+        "best_chance": case(
+            (Scholarship.selection_ratio_percent.is_(None), -1), else_=Scholarship.selection_ratio_percent
+        ).desc(),
+        "deadline": func.coalesce(Scholarship.deadline_date, date.max).asc(),
+    }
+    if sort not in {"best_chance", "deadline", "funding", "stipend", "newest"}:
+        raise HTTPException(
+            status_code=422, detail="Unsupported scholarship sort", headers={"X-Error-Code": "INVALID_SORT"}
+        )
+    if sort in sql_sorts and not field:
+        total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+        rows = db.scalars(
+            query.order_by(sql_sorts[sort]).offset((page - 1) * page_size).limit(page_size)
+        ).all()
+        return {
+            "items": [_public_scholarship(item) for item in rows],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
     items = list(db.scalars(query).all())
     if field:
         desired = set(field) | {"General / Any Field of Study"}
@@ -105,10 +127,6 @@ def browse(
         "stipend": lambda item: -float((item.source_data or {}).get("stipend_monthly_usd") or 0),
         "newest": lambda item: -(int(item.scholarship_id) if item.scholarship_id.isdigit() else 0),
     }
-    if sort not in sorters:
-        raise HTTPException(
-            status_code=422, detail="Unsupported scholarship sort", headers={"X-Error-Code": "INVALID_SORT"}
-        )
     items.sort(key=sorters[sort])
     total = len(items)
     start = (page - 1) * page_size
@@ -151,7 +169,7 @@ def similar(scholarship_id: str, db: Session = Depends(get_db)) -> list[dict]:
         )
     ).all()
     similar_items = [item for item in candidates if not set(fields).isdisjoint(item.fields_list or [])]
-    similar_items.sort(key=lambda item: item.host_country == source.host_country)
+    similar_items.sort(key=lambda item: item.host_country != source.host_country)
     return [_public_scholarship(item) for item in similar_items[:8]]
 
 
@@ -180,7 +198,7 @@ def match(payload: MatchRequest, db: Session = Depends(get_db), user: User = Dep
     candidates = db.scalars(select(Scholarship).where(Scholarship.is_active.is_(True))).all()
     matches = match_scholarships(list(candidates), profile)
     total = len(matches)
-    limit = free_result_limit(db) if user.plan == "free" else 100
+    limit = pro_result_limit(db) if is_pro(user) else free_result_limit(db)
     start = (payload.page - 1) * payload.page_size
     page_items = matches[start : min(start + payload.page_size, limit)] if start < limit else []
     return {

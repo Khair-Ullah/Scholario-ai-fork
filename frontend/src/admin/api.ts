@@ -25,6 +25,7 @@ export type AdminStats = {
 
 export type AdminScholarship = {
   scholarship_id: string;
+  owner_id?: number | null;
   title: string;
   university_name?: string | null;
   host_country?: string | null;
@@ -143,6 +144,33 @@ export type AiStats = {
     messages: number;
     created_at?: string | null;
   }[];
+};
+
+export type AdminConsultant = {
+  id: number;
+  email: string;
+  full_name: string;
+  is_active: boolean;
+  plan: string;
+  totp_enabled: boolean;
+  created_at?: string | null;
+  last_login_at?: string | null;
+  scholarships: number;
+  open_warnings: number;
+};
+
+export type ConsultantWarning = {
+  id: number;
+  consultant_id: number;
+  consultant_email?: string | null;
+  issued_by_email?: string | null;
+  severity: "info" | "warning" | "critical";
+  category: string;
+  reason: string;
+  detail?: string | null;
+  is_acknowledged: boolean;
+  acknowledged_at?: string | null;
+  created_at?: string | null;
 };
 
 export type ImportReport = {
@@ -318,4 +346,25 @@ export const adminApi = {
     apiFetch<Paginated<AuditEntry>>(`/api/admin/audit${qs(params)}`),
 
   aiStats: () => apiFetch<AiStats>("/api/admin/ai-stats"),
+
+  listConsultants: (params: { q?: string; page?: number; page_size?: number; is_active?: boolean } = {}) =>
+    apiFetch<Paginated<AdminConsultant>>(`/api/admin/consultants${qs(params)}`),
+
+  createConsultant: (body: { email: string; password: string; full_name: string }) =>
+    apiFetch<AdminConsultant>("/api/admin/consultants", { method: "POST", body: JSON.stringify(body) }),
+
+  updateConsultant: (id: number, body: { is_active?: boolean; full_name?: string; plan?: string }) =>
+    apiFetch<AdminConsultant>(`/api/admin/consultants/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+
+  warnConsultant: (id: number, body: { severity: "info" | "warning" | "critical"; reason: string; detail?: string }) =>
+    apiFetch<ConsultantWarning>(`/api/admin/consultants/${id}/warn`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  resetConsultant2fa: (id: number) =>
+    apiFetch<{ id: number; totp_enabled: boolean }>(`/api/admin/consultants/${id}/reset-2fa`, { method: "POST" }),
+
+  listWarnings: (params: { consultant_id?: number; severity?: string; is_acknowledged?: boolean; page?: number; page_size?: number } = {}) =>
+    apiFetch<Paginated<ConsultantWarning>>(`/api/admin/warnings${qs(params)}`),
 };

@@ -5,8 +5,8 @@ class ProfileUpdate(BaseModel):
     full_name: str | None = Field(default=None, min_length=1, max_length=200)
     origin_country: str | None = Field(default=None, max_length=120)
     target_level: str | None = Field(default=None, max_length=40)
-    host_countries: list[str] | None = None
-    fields_of_study: list[str] | None = None
+    host_countries: list[str] | None = Field(default=None, max_length=50)
+    fields_of_study: list[str] | None = Field(default=None, max_length=50)
     ielts_status: str | None = Field(default=None, pattern="^(not_taking|taking_6|taking_7|taking_8)$")
     gpa_scale: str | None = Field(default=None, pattern="^(4.0|5.0|10|percentage)$")
     gpa_value: float | None = Field(default=None, ge=0)
@@ -14,10 +14,10 @@ class ProfileUpdate(BaseModel):
     bs_marks_obtained: float | None = Field(default=None, ge=0)
     bs_marks_total: float | None = Field(default=None, gt=0)
     funding_preference: str | None = Field(default=None, max_length=30)
-    extra_preferences: dict | None = None
+    extra_preferences: dict | None = Field(default=None, max_length=100)
     intake_preference: str | None = Field(default=None, max_length=40)
-    budget_note: str | None = None
-    bio: str | None = None
+    budget_note: str | None = Field(default=None, max_length=1000)
+    bio: str | None = Field(default=None, max_length=5000)
     onboarding_step: int | None = Field(default=None, ge=1, le=10)
 
     @model_validator(mode="after")

@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, Date, Float, Index, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Date, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -15,9 +15,11 @@ class Scholarship(Base):
         Index("ix_scholarships_ielts_tier", "ielts_tier"),
         Index("ix_scholarships_deadline_date", "deadline_date"),
         Index("ix_scholarships_scholarship_type", "scholarship_type"),
+        Index("ix_scholarships_owner_id", "owner_id"),
     )
 
     scholarship_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     level: Mapped[str | None] = mapped_column(String(80))
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     university_name: Mapped[str | None] = mapped_column(String(500))

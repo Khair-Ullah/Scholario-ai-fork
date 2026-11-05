@@ -9,6 +9,12 @@ import { adminApi, type Announcement } from "@/admin/api";
 
 type Draft = { title: string; body: string; audience: "all" | "pro" | "free"; link: string };
 
+function safeHref(link: string | null | undefined): string | null {
+  if (!link) return null;
+  if (link.startsWith("/") && !link.startsWith("//") && !link.includes("\\")) return link;
+  return /^https?:\/\//i.test(link) ? link : null;
+}
+
 export default function AdminAnnouncementsPage() {
   const [items, setItems] = useState<Announcement[]>([]);
   const [total, setTotal] = useState(0);
@@ -99,7 +105,16 @@ useEffect(() => {
     {
       key: "link",
       label: "Link",
-      render: (item) => (item.link ? <a href={item.link} target="_blank" rel="noreferrer">{item.link}</a> : <span className="admin-thumb">none</span>),
+      render: (item) => {
+        const href = safeHref(item.link);
+        return href ? (
+          <a href={href} target="_blank" rel="noreferrer">
+            {href}
+          </a>
+        ) : (
+          <span className="admin-thumb">{item.link ? "unsafe" : "none"}</span>
+        );
+      },
     },
     {
       key: "sent",

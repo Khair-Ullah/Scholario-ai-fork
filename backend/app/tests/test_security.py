@@ -31,7 +31,7 @@ def security_client():
                     email="admin@example.com",
                     password_hash=hash_password("admin-password-123"),
                     full_name="Admin",
-                    role="admin",
+                    role="super_admin",
                     is_verified=True,
                     plan="pro",
                     referral_code="admin-sec-code",
@@ -137,7 +137,7 @@ def test_self_lockout_blocked_when_other_admin_exists(security_client: TestClien
                 email="admin2@example.com",
                 password_hash=hash_password("admin-password-123"),
                 full_name="Admin Two",
-                role="admin",
+                role="super_admin",
                 is_verified=True,
                 plan="pro",
                 referral_code="admin-sec-code-2",
@@ -155,7 +155,7 @@ def test_last_admin_guard_blocks_self_demotion(security_client: TestClient) -> N
     admin_id = _login_admin(security_client)
     response = security_client.patch(f"/api/admin/users/{admin_id}", json={"role": "student"})
     assert response.status_code == 409
-    assert response.json()["code"] == "LAST_ADMIN"
+    assert response.json()["code"] == "LAST_SUPER_ADMIN"
 
 
 def test_scholarship_update_writes_audit_log(security_client: TestClient) -> None:

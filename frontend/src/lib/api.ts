@@ -1,4 +1,4 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "").trim();
 
 const CSRF_COOKIE = "csrftoken";
 const CSRF_HEADER = "X-CSRF-Token";
@@ -41,20 +41,44 @@ export async function csrfHeaders(): Promise<Record<string, string>> {
 
 let refreshRequest: Promise<boolean> | null = null;
 
-async function refreshSession(): Promise<boolean> {
+function refreshSession(): Promise<boolean> {
   if (!refreshRequest) {
-    refreshRequest = fetch(`${API_URL}/api/auth/refresh`, {
-      method: "POST",
-      credentials: "include",
-      headers: await csrfHeaders(),
-    })
-      .then((response) => response.ok)
-      .catch(() => false)
-      .finally(() => {
+    // Assign synchronously so concurrent 401s share one refresh call instead of
+    // racing and tripping the backend's refresh-token reuse detection.
+    refreshRequest = (async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/auth/refresh`, {
+          method: "POST",
+          credentials: "include",
+          headers: await csrfHeaders(),
+        });
+        return response.ok;
+      } catch {
+        return false;
+      } finally {
         refreshRequest = null;
-      });
+      }
+    })();
   }
   return refreshRequest;
+}
+
+export type SessionUser = { id: number; email: string; full_name: string; role: string };
+
+let meCache: Promise<SessionUser> | null = null;
+
+export function resetSessionCache(): void {
+  meCache = null;
+}
+
+export function getMe(force = false): Promise<SessionUser> {
+  if (force || !meCache) {
+    meCache = apiFetch<SessionUser>("/api/auth/me").catch((error) => {
+      meCache = null;
+      throw error;
+    });
+  }
+  return meCache;
 }
 
 const SESSION_EXPIRED_KEY = "scholario.session-expired";
@@ -63,21 +87,27 @@ let endingSession = false;
 async function endSession(): Promise<void> {
   if (typeof window === "undefined" || endingSession) return;
   endingSession = true;
+  resetSessionCache();
   try {
     await apiFetch("/api/auth/logout", { method: "POST" });
   } catch {
     // best effort — cookies may already be gone or the API unreachable
   }
-  const onAdmin = window.location.pathname.startsWith("/admin");
-  const login = onAdmin ? "/admin/login" : "/login";
-  const next = window.location.pathname + window.location.search;
+  const path = window.location.pathname;
+  const onConsultant = path.startsWith("/consultant");
+  const onAdmin = path.startsWith("/admin");
+  const login = onConsultant ? "/consultant/login" : onAdmin ? "/admin/login" : "/login";
+  const next = path + window.location.search;
+  const onAuthPage = ["/login", "/register", "/admin/login", "/consultant/login"].some(
+    (route) => path === route || path.startsWith(`${route}/`),
+  );
   const target =
-    !onAdmin && next && next !== "/" && !next.startsWith("/login") && !next.startsWith("/register")
+    login === "/login" && next && next !== "/" && !onAuthPage
       ? `${login}?next=${encodeURIComponent(next)}`
       : login;
   // Only redirect once per session-expiry: if cookies could not be cleared the
   // middleware would bounce us straight back and we would loop forever.
-  if (window.location.pathname !== login && !sessionStorage.getItem(SESSION_EXPIRED_KEY)) {
+  if (path !== login && !sessionStorage.getItem(SESSION_EXPIRED_KEY)) {
     sessionStorage.setItem(SESSION_EXPIRED_KEY, "1");
     window.location.assign(target);
   }

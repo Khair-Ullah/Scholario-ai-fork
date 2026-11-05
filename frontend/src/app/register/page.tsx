@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, resetSessionCache } from "@/lib/api";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -24,6 +24,7 @@ export default function RegisterPage() {
         method: "POST",
         body: JSON.stringify({ ...form, referral_code: referralCode }),
       });
+      resetSessionCache();
       router.replace("/onboarding");
     } catch (cause) {
       setError(

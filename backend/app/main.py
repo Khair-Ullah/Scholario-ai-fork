@@ -19,6 +19,7 @@ from app.routers.admin import router as admin_router
 from app.routers.ai import router as ai_router
 from app.routers.auth import router as auth_router
 from app.routers.billing import router as billing_router
+from app.routers.consultant import router as consultant_router
 from app.routers.documents import router as documents_router
 from app.routers.notifications import router as notifications_router
 from app.routers.onboarding import router as onboarding_router
@@ -57,6 +58,8 @@ app.add_middleware(SlowAPIMiddleware)
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next) -> Response:
     response = await call_next(request)
+    if os.getenv("APP_ENV") == "production":
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
@@ -84,6 +87,7 @@ app.include_router(referral_router)
 app.include_router(visa_router)
 app.include_router(billing_router)
 app.include_router(admin_router)
+app.include_router(consultant_router)
 
 
 @app.exception_handler(HTTPException)

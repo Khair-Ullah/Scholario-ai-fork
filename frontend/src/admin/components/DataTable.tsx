@@ -15,12 +15,14 @@ export function DataTable<T>({
   loading,
   emptyText = "No records in this view.",
   footer,
+  getRowKey,
 }: {
   columns: Column<T>[];
   rows: T[];
   loading?: boolean;
   emptyText?: string;
   footer?: React.ReactNode;
+  getRowKey?: (row: T, index: number) => React.Key;
 }) {
   return (
     <div className="admin-table-wrap">
@@ -46,7 +48,7 @@ export function DataTable<T>({
                 </tr>
               ))
             : rows.map((row, index) => (
-                <tr key={index}>
+                <tr key={getRowKey ? getRowKey(row, index) : index}>
                   {columns.map((column) => (
                     <td key={column.key} className={column.className}>
                       {column.render(row)}

@@ -69,7 +69,8 @@ The system is a two-service web application: a Next.js frontend serving pages an
 |---|---|---|
 | **Visitor** | Not logged in | Public pages, public scholarship catalog, register/login |
 | **Student** | Registered user | Onboarding, matching, full workspace, documents, AI tools |
-| **Admin** | Privileged account | Everything a student has + catalog curation, CSV import, user management |
+| **Consultant** | Partner account, created by a super admin | A scoped workspace at `/consultant`: create/edit/delete/export only the scholarships they own, view the students who saved or applied to them, and acknowledge platform warnings |
+| **Super admin** | Privileged platform account | Everything a student has + full catalog curation, CSV import/export, user & consultant management, warnings, templates, announcements, payments, settings, audit, and AI oversight at `/admin` |
 | **Operator** | Maintainer | Environment, database, deployment, provider configuration |
 
 ### 2.3 Student journey
@@ -175,8 +176,12 @@ Priority: **M** = Must (core), **S** = Should (important), **C** = Could (nice t
 | FR-039 | Allow CSV import up to 25 MB with a validation report; idempotent upsert by `scholarship_id`; admin country corrections survive re-import. | M |
 | FR-040 | List universities with unmapped/low-confidence host countries (600 names / 3,041 rows) and let admins assign the correct country. | M |
 | FR-041 | Let admins list users and change plan (`free`/`pro`) and access status. | S |
+| FR-042 | Distinguish `super_admin` and `consultant` roles; the `/admin` panel requires `super_admin` and a separate `/consultant` panel requires `consultant`. Consultant accounts are created only by a super admin. | M |
+| FR-043 | Attribute each scholarship to an owner; consultants may manage only their own listings while a super admin manages all and may reassign ownership. | M |
+| FR-044 | Support optional TOTP two-factor authentication for staff (setup/enable/disable/regenerate recovery codes) and lock an account after repeated failed sign-ins. | S |
+| FR-045 | Raise and notify consultants of suspicious-activity/manual warnings, which consultants can acknowledge. | S |
 
-**Totals: 41 functional requirements — 33 Must, 7 Should, 1 Could.**
+**Totals: 45 functional requirements — 36 Must, 8 Should, 1 Could.**
 
 ---
 

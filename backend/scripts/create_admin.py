@@ -10,7 +10,7 @@ from app.models import User
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Create the initial Scholario admin account")
+    parser = argparse.ArgumentParser(description="Create the initial Scholario super admin account")
     parser.add_argument("--email", required=True)
     parser.add_argument("--password")
     parser.add_argument("--name", default="Scholario Admin")
@@ -28,7 +28,7 @@ def main() -> None:
                 email=email,
                 password_hash=hash_password(password),
                 full_name=args.name,
-                role="admin",
+                role="super_admin",
                 is_active=True,
                 is_verified=True,
                 plan="pro",
@@ -36,7 +36,7 @@ def main() -> None:
             )
         )
         session.commit()
-    print(f"Admin account created for {email}")
+    print(f"Super admin account created for {email}")
 
 
 if __name__ == "__main__":

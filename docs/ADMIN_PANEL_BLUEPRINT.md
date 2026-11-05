@@ -225,6 +225,25 @@ All under `require_admin` + audit capture (M0.3). Prefix `/api/admin`.
 
 ---
 
+### M5 — Roles, Consultant Panel, 2FA & Warnings
+
+Split the single admin role into `super_admin` + `consultant`, add a separate consultant workspace, TOTP second factor, and suspicious-activity warnings.
+
+- [x] Migration `0011_roles_ownership_2fa`: map `admin`→`super_admin`, add user 2FA columns, `scholarships.owner_id`, `auth_attempts`, `consultant_warnings`
+- [x] `app/core/permissions.py`: role constants + `require_roles`/`require_super_admin`/`require_consultant`/`require_staff`, ownership helpers
+- [x] `app/routers/admin.py`: `require_admin = require_super_admin`; `owner_id` in create/patch; consultant-management endpoints (`GET/POST /consultants`, `PATCH /consultants/{id}`, `warn`, `reset-2fa`); `GET /warnings`
+- [x] `app/routers/consultant.py` (new): scoped stats, scholarship CRUD/bulk/export, applicants (full profile), warnings, profile, announcements
+- [x] `app/routers/auth.py`: role-gated admin + consultant login, `_check_lockout`, `_verify_second_factor`, `/mfa/*` endpoints; `app/services/auth_guard.py` (lockout) and `app/services/anomaly.py` (warnings)
+- [x] `app/core/security.py`: TOTP secret/URI/verify + hashed recovery codes (`pyotp`)
+- [x] Scripts: `create_admin.py`→`super_admin`; `create_consultant.py` (new) + `make seed-consultant`
+- [x] Frontend: super-admin `/admin` gate, Consultants + Warnings pages, MFA panel; new `/consultant/*` workspace (login, dashboard, scholarships, applicants, warnings, profile)
+- [x] Tests: `test_consultant.py` (9) — role gates, ownership isolation, reassignment, warn+ack, 2FA login, lockout, anomaly dedupe; existing suites updated to `super_admin`
+- [x] `docs/API.md`, `docs/DATABASE.md`, `docs/DECISIONS.md`, `docs/ADMIN_PANEL_BLUEPRINT.md`, `README.md` updated
+
+**M5 exit criteria:** full suite green (79 passing), services coverage ≥80%, ruff/ESLint/tsc/build clean.
+
+---
+
 ## 5. Endpoint Backlog (quick reference)
 
 | Endpoint | Method | M | Status |
@@ -291,6 +310,7 @@ All under `require_admin` + audit capture (M0.3). Prefix `/api/admin`.
 | 2026-10-08 | opencode | M3 complete: 10 admin pages (dashboard, scholarships, data-quality, users, templates, announcements, payments, settings, audit, AI) wired to adminApi. ESLint + next build clean. Live smoke-tested: all 12 admin routes 200. | *uncommitted* |
 | 2026-10-08 | opencode | M4 complete: ruff clean, ESLint clean, next build passes, pytest services coverage 81% (>=80 gate), docs/API.md updated with admin routes + security notes, blueprint checkboxes reconciled (80 ticked / 10 pending). Full suite 69 passed. | *uncommitted* |
 | 2026-10-08 | opencode | Session hardening (logout gaps): access-token `jti` denylist (model + migration 0010, `token_blocklist` service, enforced in `get_current_user` → `401 AUTH_REVOKED`), logout revokes the presented access token; `api.ts` `endSession()` clears cookies then redirects to `/login`/`/admin/login` once per expiry. 70 tests pass, ruff/ESLint/tsc clean, live replay smoke verified. | *uncommitted* |
+| 2026-10-10 | opencode | M5 complete: roles split `student`/`consultant`/`super_admin` (migration 0011), scholarship ownership, separate `/consultant` workspace (login/dashboard/scholarships/applicants/warnings/profile) + super-admin Consultants/Warnings pages, TOTP 2FA (`/mfa/*`, pyotp) with recovery codes, failed-login lockout (`auth_attempts`), anomaly warnings (`anomaly.py`), `create_consultant.py` + `make seed-consultant`. New `test_consultant.py` (9 tests). Full suite 79 passed, services coverage 82.7%, ruff/ESLint/tsc/next build clean. | *uncommitted* |
 | | | | |
 
 ---

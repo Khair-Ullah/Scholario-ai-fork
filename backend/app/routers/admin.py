@@ -1,22 +1,26 @@
 import csv
 import io
 import os
-from datetime import date, datetime, time, timedelta
+import secrets
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user, get_db
+from app.core.deps import get_db
+from app.core.permissions import ROLE_CONSULTANT, ROLE_SUPER_ADMIN, require_super_admin
+from app.core.security import hash_password
 from app.models import (
     Application,
     AuditLog,
     ChatMessage,
     ChatSession,
+    ConsultantWarning,
     Document,
     Notification,
     Profile,
@@ -27,23 +31,42 @@ from app.models import (
     UniversityCountry,
     User,
 )
+from app.services import anomaly
 from app.services.audit import log_audit, request_ip
 from app.services.csv_import import import_country_map, import_csv
+from app.services.export import csv_safe
 from app.services.settings import get_settings, save_settings
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
+require_admin = require_super_admin
 
-def require_admin(user: User = Depends(get_current_user)) -> User:
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=403, detail="Admin account required", headers={"X-Error-Code": "AUTH_ADMIN_REQUIRED"}
-        )
-    return user
+
+def _clean_http_url(value: str | None) -> str | None:
+    if value is None:
+        return None
+    value = value.strip()
+    if not value:
+        return None
+    if not (value.startswith("http://") or value.startswith("https://")):
+        raise ValueError("URL must start with http:// or https://")
+    return value
+
+
+def _clean_link(value: str | None) -> str | None:
+    if value is None:
+        return None
+    value = value.strip()
+    if not value:
+        return None
+    if value.startswith("/") or value.startswith("http://") or value.startswith("https://"):
+        return value
+    raise ValueError("Link must be an absolute http(s) URL or an internal path")
 
 
 class ScholarshipPatch(BaseModel):
     title: str | None = Field(default=None, max_length=500)
+    owner_id: int | None = None
     host_country: str | None = Field(default=None, max_length=120)
     university_name: str | None = Field(default=None, max_length=240)
     application_url: str | None = None
@@ -59,6 +82,11 @@ class ScholarshipPatch(BaseModel):
     description_text: str | None = None
     source_data: dict[str, Any] | None = None
 
+    @field_validator("application_url")
+    @classmethod
+    def _validate_application_url(cls, value: str | None) -> str | None:
+        return _clean_http_url(value)
+
 
 class CountryPatch(BaseModel):
     host_country: str = Field(min_length=1, max_length=120)
@@ -68,13 +96,14 @@ class CountryPatch(BaseModel):
 class AdminUserPatch(BaseModel):
     is_active: bool | None = None
     plan: str | None = Field(default=None, pattern="^(free|pro)$")
-    role: str | None = Field(default=None, pattern="^(student|admin)$")
+    role: str | None = Field(default=None, pattern="^(student|consultant|super_admin)$")
     is_verified: bool | None = None
 
 
 class ScholarshipCreate(BaseModel):
     scholarship_id: str = Field(min_length=1, max_length=80)
     title: str = Field(min_length=1, max_length=500)
+    owner_id: int | None = None
     university_name: str | None = Field(default=None, max_length=240)
     host_country: str | None = Field(default=None, max_length=120)
     level: str | None = Field(default=None, max_length=40)
@@ -91,6 +120,11 @@ class ScholarshipCreate(BaseModel):
     description_text: str | None = None
     selection_ratio_percent: float | None = None
     source_data: dict[str, Any] | None = None
+
+    @field_validator("application_url")
+    @classmethod
+    def _validate_application_url(cls, value: str | None) -> str | None:
+        return _clean_http_url(value)
 
 
 class BulkAction(BaseModel):
@@ -136,6 +170,11 @@ class AnnouncementCreate(BaseModel):
     audience: str = Field(default="all", pattern="^(all|pro|free)$")
     link: str | None = Field(default=None, max_length=500)
 
+    @field_validator("link")
+    @classmethod
+    def _validate_link(cls, value: str | None) -> str | None:
+        return _clean_link(value)
+
 
 class PaymentGrant(BaseModel):
     user_id: int
@@ -160,7 +199,7 @@ class SettingsPatch(BaseModel):
 
 @router.get("/stats")
 def stats(db: Session = Depends(get_db), admin: User = Depends(require_admin)) -> dict:
-    today = date.today()
+    today = datetime.now(UTC).date()
     start_7d = today - timedelta(days=6)
     new_today = (
         db.scalar(
@@ -319,6 +358,7 @@ def create_scholarship(
     item = Scholarship(
         scholarship_id=payload.scholarship_id,
         title=payload.title,
+        owner_id=payload.owner_id,
         university_name=payload.university_name,
         host_country=payload.host_country,
         level=payload.level,
@@ -389,6 +429,8 @@ def update_scholarship(
             setattr(item, key, changes.pop(key))
     if "source_data" in changes:
         item.source_data = {**(item.source_data or {}), **changes["source_data"]}
+    if "owner_id" in changes:
+        item.owner_id = changes["owner_id"]
     if payload.model_fields_set & {"title", "university_name", "description_text"}:
         item.search_text = " ".join(
             (item.title or "", item.university_name or "", item.description_text or "")
@@ -546,19 +588,19 @@ def export_scholarships_csv(
     for item in items:
         writer.writerow(
             [
-                item.scholarship_id,
-                item.title,
-                item.university_name or "",
-                item.host_country or "",
-                item.level or "",
-                item.scholarship_type or "",
+                csv_safe(item.scholarship_id),
+                csv_safe(item.title),
+                csv_safe(item.university_name or ""),
+                csv_safe(item.host_country or ""),
+                csv_safe(item.level or ""),
+                csv_safe(item.scholarship_type or ""),
                 "1" if item.ielts_required else "0",
-                item.ielts_band or "",
+                csv_safe(item.ielts_band or ""),
                 item.ielts_tier or "",
                 item.deadline_date.isoformat() if item.deadline_date else "",
-                item.deadline_kind or "",
+                csv_safe(item.deadline_kind or ""),
                 "1" if item.is_active else "0",
-                item.application_url or "",
+                csv_safe(item.application_url or ""),
             ]
         )
     output.seek(0)
@@ -587,7 +629,7 @@ async def dry_run_import_scholarships(
     with TemporaryDirectory() as directory:
         csv_path = Path(directory) / "upload.csv"
         csv_path.write_bytes(content)
-        map_report = import_country_map(db, map_path)
+        map_report = import_country_map(db, map_path, commit=False)
         report = import_csv(db, csv_path, map_path, dry_run=True)
     return {"country_map": map_report, "import": report}
 
@@ -756,7 +798,8 @@ def list_users(
     if is_active is not None:
         query = query.where(User.is_active.is_(is_active))
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
-    users = db.scalars(query.offset((max(1, page) - 1) * min(page_size, 100)).limit(min(page_size, 100))).all()
+    page_size = max(1, min(page_size, 100))
+    users = db.scalars(query.offset((max(1, page) - 1) * page_size).limit(page_size)).all()
     return {
         "items": [
             {
@@ -773,12 +816,13 @@ def list_users(
         ],
         "total": total,
         "page": max(1, page),
-        "page_size": min(page_size, 100),
+        "page_size": page_size,
         "counts": {
             "total": db.scalar(select(func.count(User.id))) or 0,
             "pro": db.scalar(select(func.count(User.id)).where(User.plan == "pro")) or 0,
             "disabled": db.scalar(select(func.count(User.id)).where(User.is_active.is_(False))) or 0,
-            "admins": db.scalar(select(func.count(User.id)).where(User.role == "admin")) or 0,
+            "admins": db.scalar(select(func.count(User.id)).where(User.role == ROLE_SUPER_ADMIN)) or 0,
+            "consultants": db.scalar(select(func.count(User.id)).where(User.role == ROLE_CONSULTANT)) or 0,
         },
     }
 
@@ -795,16 +839,21 @@ def update_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found", headers={"X-Error-Code": "USER_NOT_FOUND"})
     changes = payload.model_dump(exclude_unset=True)
-    loses_admin = user.role == "admin" and (changes.get("role") == "student" or changes.get("is_active") is False)
-    if loses_admin:
-        active_admins = (
-            db.scalar(select(func.count(User.id)).where(User.role == "admin", User.is_active.is_(True))) or 0
+    loses_super_admin = user.role == ROLE_SUPER_ADMIN and (
+        changes.get("role") in {"student", "consultant"} or changes.get("is_active") is False
+    )
+    if loses_super_admin:
+        active_supers = (
+            db.scalar(
+                select(func.count(User.id)).where(User.role == ROLE_SUPER_ADMIN, User.is_active.is_(True))
+            )
+            or 0
         )
-        if active_admins <= 1:
+        if active_supers <= 1:
             raise HTTPException(
                 status_code=409,
-                detail="At least one active admin account must remain",
-                headers={"X-Error-Code": "LAST_ADMIN"},
+                detail="At least one active super admin account must remain",
+                headers={"X-Error-Code": "LAST_SUPER_ADMIN"},
             )
     if user.id == admin.id:
         if changes.get("is_active") is False:
@@ -813,10 +862,10 @@ def update_user(
                 detail="You cannot deactivate your own account",
                 headers={"X-Error-Code": "SELF_LOCKOUT"},
             )
-        if changes.get("role") == "student":
+        if changes.get("role") in {"student", "consultant"}:
             raise HTTPException(
                 status_code=400,
-                detail="You cannot remove your own admin role",
+                detail="You cannot remove your own super admin role",
                 headers={"X-Error-Code": "SELF_LOCKOUT"},
             )
     before = _user_audit_snapshot(user)
@@ -929,6 +978,7 @@ def revoke_user_sessions(
     db.query(RefreshToken).filter(RefreshToken.user_id == user_id, RefreshToken.revoked.is_(False)).update(
         {RefreshToken.revoked: True}, synchronize_session=False
     )
+    user.token_version += 1
     log_audit(
         db,
         actor=admin,
@@ -1288,7 +1338,7 @@ def list_announcements(
 ) -> dict:
     query = select(AuditLog).where(AuditLog.action == "announcement.send").order_by(desc(AuditLog.created_at))
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
-    rows = db.scalars(query.offset((max(1, page) - 1) * min(page_size, 50)).limit(min(page_size, 50))).all()
+    rows = db.scalars(query.offset((max(1, page) - 1) * min(page_size, 50)).limit(max(1, min(page_size, 50)))).all()
     return {
         "items": [
             {
@@ -1301,7 +1351,7 @@ def list_announcements(
         ],
         "total": total,
         "page": max(1, page),
-        "page_size": min(page_size, 50),
+        "page_size": max(1, min(page_size, 50)),
     }
 
 
@@ -1310,9 +1360,10 @@ def payments_summary(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ) -> dict:
-    today = date.today()
+    today = datetime.now(UTC).date()
     soon = today + timedelta(days=14)
     plan_counts = dict(db.execute(select(User.plan, func.count(User.id)).group_by(User.plan)).all())
+    audit_actions = ["payment.grant", "payment.transfer_approved", "payment.transfer_rejected"]
     history = [
         {
             "id": row.id,
@@ -1323,10 +1374,13 @@ def payments_summary(
         }
         for row in db.scalars(
             select(AuditLog)
-            .where(AuditLog.action.in_(["payment.grant", "payment.transfer_approved"]))
+            .where(AuditLog.action.in_(audit_actions))
             .order_by(desc(AuditLog.created_at))
             .limit(50)
         ).all()
+    ]
+    transfer_queue = [
+        entry for entry in history if entry["action"] == "payment.transfer_approved"
     ]
     return {
         "plan_counts": {"free": plan_counts.get("free", 0), "pro": plan_counts.get("pro", 0)},
@@ -1337,7 +1391,7 @@ def payments_summary(
             )
         )
         or 0,
-        "transfer_queue": history,
+        "transfer_queue": transfer_queue,
         "history": history,
         "note": "No payment model yet - grants and transfer approvals are recorded in the audit trail.",
     }
@@ -1446,8 +1500,8 @@ def list_audit(
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     rows = db.scalars(
         query.order_by(desc(AuditLog.created_at))
-        .offset((max(1, page) - 1) * min(page_size, 200))
-        .limit(min(page_size, 200))
+        .offset((max(1, page) - 1) * max(1, min(page_size, 200)))
+        .limit(max(1, min(page_size, 200)))
     ).all()
     return {
         "items": [
@@ -1466,7 +1520,7 @@ def list_audit(
         ],
         "total": total,
         "page": max(1, page),
-        "page_size": min(page_size, 200),
+        "page_size": max(1, min(page_size, 200)),
     }
 
 
@@ -1475,15 +1529,13 @@ def ai_stats(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ) -> dict:
-    start_7d = datetime.now().date() - timedelta(days=7)
+    start_7d = datetime.now(UTC).date() - timedelta(days=7)
     sessions = db.scalar(select(func.count(ChatSession.id))) or 0
     messages_7d = db.scalar(
         select(func.count(ChatMessage.id)).where(ChatMessage.created_at >= datetime.combine(start_7d, time.min))
     ) or 0
     tokens_total = db.scalar(select(func.coalesce(func.sum(ChatMessage.tokens), 0))) or 0
-    provider_rows = db.execute(
-        select(ChatSession.title, func.count(ChatSession.id)).group_by(ChatSession.title)
-    ).all()
+    provider_name = str(get_settings(db).get("ai_provider", "mock"))
     recent = []
     for session in db.scalars(select(ChatSession).order_by(desc(ChatSession.created_at)).limit(20)).all():
         owner = db.get(User, session.user_id)
@@ -1501,7 +1553,7 @@ def ai_stats(
         "sessions": sessions,
         "messages_7d": messages_7d,
         "tokens_total": tokens_total,
-        "by_provider": {"mock": len(provider_rows)},
+        "by_provider": {provider_name: sessions},
         "recent_sessions": recent,
     }
 
@@ -1538,6 +1590,7 @@ def _scholarship_audit_snapshot(item: Scholarship) -> dict:
 def _admin_scholarship(item: Scholarship) -> dict:
     return {
         "scholarship_id": item.scholarship_id,
+        "owner_id": item.owner_id,
         "title": item.title,
         "university_name": item.university_name,
         "host_country": item.host_country,
@@ -1546,4 +1599,255 @@ def _admin_scholarship(item: Scholarship) -> dict:
         "scholarship_type": item.scholarship_type,
         "is_active": item.is_active,
         "source_data": item.source_data,
+    }
+
+
+class ConsultantCreate(BaseModel):
+    email: EmailStr = Field(max_length=320)
+    password: str = Field(min_length=8, max_length=128)
+    full_name: str = Field(min_length=1, max_length=200)
+
+
+class ConsultantPatch(BaseModel):
+    is_active: bool | None = None
+    full_name: str | None = Field(default=None, min_length=1, max_length=200)
+    plan: str | None = Field(default=None, pattern="^(free|pro)$")
+
+
+class WarningCreate(BaseModel):
+    severity: str = Field(default="warning", pattern="^(info|warning|critical)$")
+    reason: str = Field(min_length=1, max_length=200)
+    detail: str | None = Field(default=None, max_length=2000)
+
+
+def _consultant_dict(db: Session, user: User) -> dict:
+    scholarship_count = (
+        db.scalar(select(func.count(Scholarship.scholarship_id)).where(Scholarship.owner_id == user.id)) or 0
+    )
+    warning_count = (
+        db.scalar(
+            select(func.count(ConsultantWarning.id)).where(
+                ConsultantWarning.consultant_id == user.id, ConsultantWarning.is_acknowledged.is_(False)
+            )
+        )
+        or 0
+    )
+    return {
+        "id": user.id,
+        "email": user.email,
+        "full_name": user.full_name,
+        "is_active": user.is_active,
+        "plan": user.plan,
+        "totp_enabled": user.totp_enabled,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
+        "scholarships": scholarship_count,
+        "open_warnings": warning_count,
+    }
+
+
+def _warning_dict(db: Session, warning: ConsultantWarning) -> dict:
+    consultant = db.get(User, warning.consultant_id)
+    issuer = db.get(User, warning.issued_by_id) if warning.issued_by_id else None
+    return {
+        "id": warning.id,
+        "consultant_id": warning.consultant_id,
+        "consultant_email": consultant.email if consultant else None,
+        "issued_by_email": issuer.email if issuer else None,
+        "severity": warning.severity,
+        "category": warning.category,
+        "reason": warning.reason,
+        "detail": warning.detail,
+        "is_acknowledged": warning.is_acknowledged,
+        "acknowledged_at": warning.acknowledged_at.isoformat() if warning.acknowledged_at else None,
+        "created_at": warning.created_at.isoformat() if warning.created_at else None,
+    }
+
+
+@router.get("/consultants")
+def list_consultants(
+    q: str | None = None,
+    page: int = 1,
+    page_size: int = 50,
+    is_active: bool | None = None,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+) -> dict:
+    query = select(User).where(User.role == ROLE_CONSULTANT).order_by(User.created_at.desc())
+    if q:
+        query = query.where(User.email.contains(q.lower()) | User.full_name.contains(q))
+    if is_active is not None:
+        query = query.where(User.is_active.is_(is_active))
+    page = max(1, page)
+    page_size = max(1, min(page_size, 100))
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    rows = db.scalars(query.offset((page - 1) * page_size).limit(page_size)).all()
+    return {
+        "items": [_consultant_dict(db, item) for item in rows],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+@router.post("/consultants", status_code=201)
+def create_consultant(
+    payload: ConsultantCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+) -> dict:
+    email = payload.email.strip().lower()
+    if db.scalar(select(User.id).where(User.email == email)):
+        raise HTTPException(
+            status_code=409,
+            detail="An account with this email already exists",
+            headers={"X-Error-Code": "EMAIL_IN_USE"},
+        )
+    user = User(
+        email=email,
+        password_hash=hash_password(payload.password),
+        full_name=payload.full_name.strip(),
+        role=ROLE_CONSULTANT,
+        is_active=True,
+        is_verified=True,
+        plan="free",
+        referral_code=secrets.token_urlsafe(9),
+    )
+    db.add(user)
+    db.flush()
+    log_audit(
+        db,
+        actor=admin,
+        action="consultant.create",
+        entity="user",
+        entity_id=user.id,
+        after={"email": user.email, "full_name": user.full_name},
+        ip=request_ip(request),
+    )
+    db.commit()
+    db.refresh(user)
+    return _consultant_dict(db, user)
+
+
+@router.patch("/consultants/{user_id}")
+def update_consultant(
+    user_id: int,
+    payload: ConsultantPatch,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+) -> dict:
+    user = db.get(User, user_id)
+    if not user or user.role != ROLE_CONSULTANT:
+        raise HTTPException(
+            status_code=404, detail="Consultant not found", headers={"X-Error-Code": "CONSULTANT_NOT_FOUND"}
+        )
+    changes = payload.model_dump(exclude_unset=True)
+    before = {"is_active": user.is_active, "full_name": user.full_name, "plan": user.plan}
+    for key, value in changes.items():
+        setattr(user, key, value)
+    log_audit(
+        db,
+        actor=admin,
+        action="consultant.update",
+        entity="user",
+        entity_id=user.id,
+        before=before,
+        after={"is_active": user.is_active, "full_name": user.full_name, "plan": user.plan},
+        ip=request_ip(request),
+    )
+    db.commit()
+    return _consultant_dict(db, user)
+
+
+@router.post("/consultants/{user_id}/warn")
+def warn_consultant(
+    user_id: int,
+    payload: WarningCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+) -> dict:
+    user = db.get(User, user_id)
+    if not user or user.role != ROLE_CONSULTANT:
+        raise HTTPException(
+            status_code=404, detail="Consultant not found", headers={"X-Error-Code": "CONSULTANT_NOT_FOUND"}
+        )
+    warning = anomaly.create_warning(
+        db,
+        consultant=user,
+        issued_by=admin,
+        severity=payload.severity,
+        category="manual",
+        reason=payload.reason,
+        detail=payload.detail,
+    )
+    log_audit(
+        db,
+        actor=admin,
+        action="consultant.warn",
+        entity="user",
+        entity_id=user.id,
+        after={"severity": payload.severity, "reason": payload.reason},
+        ip=request_ip(request),
+    )
+    db.commit()
+    db.refresh(warning)
+    return _warning_dict(db, warning)
+
+
+@router.post("/consultants/{user_id}/reset-2fa")
+def reset_consultant_2fa(
+    user_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+) -> dict:
+    user = db.get(User, user_id)
+    if not user or user.role != ROLE_CONSULTANT:
+        raise HTTPException(
+            status_code=404, detail="Consultant not found", headers={"X-Error-Code": "CONSULTANT_NOT_FOUND"}
+        )
+    user.totp_enabled = False
+    user.totp_secret = None
+    user.totp_recovery_codes = []
+    log_audit(
+        db,
+        actor=admin,
+        action="consultant.reset_2fa",
+        entity="user",
+        entity_id=user.id,
+        ip=request_ip(request),
+    )
+    db.commit()
+    return {"id": user.id, "totp_enabled": user.totp_enabled}
+
+
+@router.get("/warnings")
+def list_warnings(
+    consultant_id: int | None = None,
+    severity: str | None = None,
+    is_acknowledged: bool | None = None,
+    page: int = 1,
+    page_size: int = 50,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+) -> dict:
+    query = select(ConsultantWarning).order_by(desc(ConsultantWarning.created_at))
+    if consultant_id is not None:
+        query = query.where(ConsultantWarning.consultant_id == consultant_id)
+    if severity:
+        query = query.where(ConsultantWarning.severity == severity)
+    if is_acknowledged is not None:
+        query = query.where(ConsultantWarning.is_acknowledged.is_(is_acknowledged))
+    page = max(1, page)
+    page_size = max(1, min(page_size, 100))
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    rows = db.scalars(query.offset((page - 1) * page_size).limit(page_size)).all()
+    return {
+        "items": [_warning_dict(db, item) for item in rows],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
     }

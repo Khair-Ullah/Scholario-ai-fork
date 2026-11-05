@@ -30,7 +30,7 @@ def client():
                     email="admin@example.com",
                     password_hash=hash_password("admin-password-123"),
                     full_name="Admin",
-                    role="admin",
+                    role="super_admin",
                     is_verified=True,
                     plan="pro",
                     referral_code="admin-code",
@@ -99,7 +99,7 @@ def test_student_cannot_read_content_endpoints(client: TestClient) -> None:
     ):
         response = client.get(path)
         assert response.status_code == 403, path
-        assert response.json()["code"] == "AUTH_ADMIN_REQUIRED"
+        assert response.json()["code"] == "AUTH_FORBIDDEN"
 
 
 def test_template_crud_slug_conflict_and_reorder(client: TestClient) -> None:

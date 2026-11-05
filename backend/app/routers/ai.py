@@ -7,10 +7,25 @@ from app.core.deps import get_current_user, get_db
 from app.core.ratelimit import limiter
 from app.models import ChatMessage, ChatSession, Profile, Scholarship, Template, User
 from app.schemas.ai import ChatRequest, FillTemplateRequest, ImproveTextRequest, SopReviewRequest
-from app.services.ai.prompts import ADVISOR_SYSTEM, IMPROVE_SYSTEM, SOP_REVIEW_SYSTEM
+from app.services.ai.base import AIProvider
 from app.services.ai.registry import get_provider
+from app.services.entitlements import is_pro
+from app.services.settings import get_settings
 
-router = APIRouter(prefix="/api/ai", tags=["AI tools"])
+
+def _require_ai_enabled(db: Session = Depends(get_db)) -> None:
+    if not get_settings(db).get("flags", {}).get("ai_enabled", True):
+        raise HTTPException(
+            status_code=403, detail="AI tools are currently disabled", headers={"X-Error-Code": "AI_DISABLED"}
+        )
+
+
+def _provider(db: Session) -> AIProvider:
+    settings = get_settings(db)
+    return get_provider(str(settings.get("ai_provider", "mock")))
+
+
+router = APIRouter(prefix="/api/ai", tags=["AI tools"], dependencies=[Depends(_require_ai_enabled)])
 
 
 @router.get("/sessions")
@@ -84,9 +99,9 @@ def chat(
         session_id=session.id, role="user", content=payload.message, tokens=len(payload.message.split())
     )
     db.add(user_message)
-    answer = get_provider().chat(payload.message, context)
+    answer = _provider(db).chat(payload.message, context)
     if not answer:
-        answer = f"{ADVISOR_SYSTEM} {SOP_REVIEW_SYSTEM}"
+        answer = "I could not generate a response just now. Please try again."
     assistant_message = ChatMessage(session_id=session.id, role="assistant", content=answer, tokens=len(answer.split()))
     db.add(assistant_message)
     db.commit()
@@ -99,7 +114,7 @@ def chat(
 def review_sop(
     payload: SopReviewRequest, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ) -> dict:
-    result = get_provider().review_sop(payload.text)
+    result = _provider(db).review_sop(payload.text)
     result["provider"] = "mock"
     result["note"] = "Demo AI feedback; review suggestions and keep all claims truthful."
     return result
@@ -111,9 +126,8 @@ def improve_text(
     payload: ImproveTextRequest, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ) -> dict[str, str]:
     return {
-        "text": get_provider().improve_text(payload.text, payload.instruction),
+        "text": _provider(db).improve_text(payload.text, payload.instruction),
         "provider": "mock",
-        "system_prompt": IMPROVE_SYSTEM,
     }
 
 
@@ -129,6 +143,10 @@ def fill_template(
     if not template:
         raise HTTPException(
             status_code=404, detail="Template not found", headers={"X-Error-Code": "TEMPLATE_NOT_FOUND"}
+        )
+    if template.is_premium and not is_pro(user):
+        raise HTTPException(
+            status_code=403, detail="This template requires a Pro plan", headers={"X-Error-Code": "PRO_REQUIRED"}
         )
     output = template.body_html
     for field in template.fields_json:
@@ -153,7 +171,7 @@ def explain_scholarship(
         raise HTTPException(
             status_code=404, detail="Scholarship not found", headers={"X-Error-Code": "SCHOLARSHIP_NOT_FOUND"}
         )
-    answer = get_provider().chat(
+    answer = _provider(db).chat(
         "Explain this scholarship in plain language and include its source-data uncertainty.",
         [_scholarship_context(scholarship)],
     )

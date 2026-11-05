@@ -64,3 +64,19 @@ def free_result_limit(db: Session) -> int:
         return max(1, int(limits.get("free_results", 30)))
     except (TypeError, ValueError):
         return 30
+
+
+def pro_result_limit(db: Session) -> int:
+    limits = get_settings(db).get("limits", {})
+    try:
+        return max(1, int(limits.get("pro_results", 100)))
+    except (TypeError, ValueError):
+        return 100
+
+
+def free_document_limit(db: Session) -> int:
+    limits = get_settings(db).get("limits", {})
+    try:
+        return max(1, int(limits.get("free_documents", 5)))
+    except (TypeError, ValueError):
+        return 5

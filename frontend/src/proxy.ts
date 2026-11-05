@@ -31,6 +31,13 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(login);
   }
 
+  const isConsultantRoute = path === "/consultant" || path.startsWith("/consultant/");
+  if (isConsultantRoute && path !== "/consultant/login" && !hasSession) {
+    const login = new URL("/consultant/login", request.url);
+    login.searchParams.set("next", path);
+    return NextResponse.redirect(login);
+  }
+
   if (protectedRoute && !hasSession) {
     const login = new URL("/login", request.url);
     login.searchParams.set("next", path);

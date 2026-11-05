@@ -38,6 +38,7 @@ export default function AdminScholarshipsPage() {
   async function load(nextPage = page, term = query, lvl = level) {
     setLoading(true);
     setError("");
+    setSelected(new Set());
     try {
       const result = await adminApi.listScholarships({
         q: term,
@@ -301,6 +302,7 @@ useEffect(() => {
         rows={rows}
         loading={loading}
         emptyText="No scholarships match this query."
+        getRowKey={(row) => row.scholarship_id}
         footer={
           <div className="admin-pagination">
             <span>

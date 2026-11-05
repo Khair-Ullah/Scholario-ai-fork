@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Database, MapPin, Search } from "lucide-react";
 import { PageHeader } from "@/admin/components/PageHeader";
 import { Toast } from "@/admin/components/Toast";
@@ -23,38 +23,44 @@ const COUNTRY_OPTIONS = [
   "Turkey", "United Arab Emirates", "United Kingdom", "United States", "Unknown",
 ];
 
+function safeHref(url: unknown): string | null {
+  const value = String(url ?? "").trim();
+  return /^https?:\/\//i.test(value) ? value : null;
+}
+
 export default function AdminDataQualityPage() {
   const [queue, setQueue] = useState<DataQualityQueue>("unmapped");
   const [result, setResult] = useState<DataQualityResponse | null>(null);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [busyName, setBusyName] = useState("");
+  const requestId = useRef(0);
 
   async function load(nextQueue = queue, page = 1) {
+    const id = ++requestId.current;
     setError("");
     try {
       const loaded = await adminApi.dataQuality(nextQueue, page, 50);
-      setResult(loaded);
+      if (id === requestId.current) setResult(loaded);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not load queue.");
+      if (id === requestId.current) {
+        setError(cause instanceof Error ? cause.message : "Could not load queue.");
+      }
     }
   }
 
-useEffect(() => {
-    let active = true;
+  useEffect(() => {
+    const id = ++requestId.current;
     adminApi
       .dataQuality("unmapped", 1, 50)
       .then((loaded) => {
-        if (active) setResult(loaded);
+        if (id === requestId.current) setResult(loaded);
       })
       .catch((cause) => {
-        if (active) {
+        if (id === requestId.current) {
           setError(cause instanceof Error ? cause.message : "Could not load queue.");
         }
       });
-    return () => {
-      active = false;
-    };
   }, []);
 
   function switchQueue(next: DataQualityQueue) {
@@ -143,17 +149,28 @@ useEffect(() => {
               </tr>
             </thead>
             <tbody>
-              {rows.map((item) => (
-                <tr key={item.scholarship_id}>
-                  <td>
-                    <strong>{item.title ?? item.scholarship_id}</strong>
-                    <small>{item.scholarship_id}</small>
-                  </td>
-                  <td>{String(item.university_name ?? "—")}</td>
-                  <td>{String(item.host_country ?? "—")}</td>
-                  <td>{item.application_url ? <a href={String(item.application_url)} target="_blank" rel="noreferrer">{String(item.application_url)}</a> : <span className="admin-thumb">none</span>}</td>
-                </tr>
-              ))}
+              {rows.map((item) => {
+                const href = safeHref(item.application_url);
+                return (
+                  <tr key={item.scholarship_id}>
+                    <td>
+                      <strong>{item.title ?? item.scholarship_id}</strong>
+                      <small>{item.scholarship_id}</small>
+                    </td>
+                    <td>{String(item.university_name ?? "—")}</td>
+                    <td>{String(item.host_country ?? "—")}</td>
+                    <td>
+                      {href ? (
+                        <a href={href} target="_blank" rel="noreferrer">
+                          {href}
+                        </a>
+                      ) : (
+                        <span className="admin-thumb">{item.application_url ? "unsafe" : "none"}</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           {rows.length === 0 && !error && (
@@ -187,7 +204,7 @@ function UnmappedRow({
       </td>
       <td>
         <span className="admin-thumb">
-          <MapPin size={12} /> {row.host_country} · {row.confidence.toFixed(2)}
+          <MapPin size={12} /> {row.host_country} · {Number(row.confidence ?? 0).toFixed(2)}
         </span>
       </td>
       <td>

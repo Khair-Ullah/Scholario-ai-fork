@@ -54,9 +54,15 @@ def update_onboarding(
     for key, value in updates.items():
         setattr(profile, key, value)
     if profile.gpa_value is not None and profile.gpa_scale:
-        profile.gpa_4_equivalent = to_g4(profile.gpa_scale, profile.gpa_value)
+        try:
+            profile.gpa_4_equivalent = to_g4(profile.gpa_scale, profile.gpa_value)
+        except ValueError:
+            profile.gpa_4_equivalent = None
     elif profile.bs_marks_obtained is not None and profile.bs_marks_total:
-        profile.gpa_4_equivalent = bs_marks_to_g4(profile.bs_marks_obtained, profile.bs_marks_total)
+        try:
+            profile.gpa_4_equivalent = bs_marks_to_g4(profile.bs_marks_obtained, profile.bs_marks_total)
+        except ValueError:
+            profile.gpa_4_equivalent = None
     db.commit()
     db.refresh(profile)
     return {"profile": jsonable_encoder(profile), "onboarding_step": profile.onboarding_step}

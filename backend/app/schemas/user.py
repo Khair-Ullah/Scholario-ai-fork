@@ -13,6 +13,22 @@ class UserCreate(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=128)
+    totp_code: str | None = Field(default=None, max_length=32)
+
+
+class MfaCodeRequest(BaseModel):
+    code: str = Field(min_length=1, max_length=32)
+
+
+class MfaStatusResponse(BaseModel):
+    enabled: bool
+    has_pending_secret: bool
+    recovery_codes_remaining: int
+
+
+class MfaSetupResponse(BaseModel):
+    secret: str
+    otpauth_uri: str
 
 
 class PasswordChange(BaseModel):
@@ -36,3 +52,4 @@ class UserPublic(BaseModel):
 class AuthResponse(BaseModel):
     user: UserPublic
     message: str
+    recovery_codes: list[str] | None = None

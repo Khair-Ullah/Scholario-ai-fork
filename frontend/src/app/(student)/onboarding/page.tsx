@@ -103,11 +103,12 @@ export default function OnboardingPage() {
     ])
       .then(([saved, allCountries]) => {
         setCountries(allCountries);
-        setForm((current) => ({
-          ...current,
-          full_name: saved.full_name,
-          ...(saved.profile || {}),
-        }));
+        setForm((current) =>
+          hydrateForm(current, {
+            ...(saved.profile || {}),
+            full_name: saved.full_name,
+          }),
+        );
         setStep(saved.onboarding_step || 1);
       })
       .catch((cause) =>
@@ -711,6 +712,34 @@ function percentageToG4(percentage: number) {
         100,
     ) / 100
   );
+}
+
+function hydrateForm(
+  current: FormState,
+  profile: Partial<FormState> | null,
+): FormState {
+  const saved = profile ?? {};
+  return {
+    ...current,
+    full_name: saved.full_name ?? current.full_name,
+    origin_country: saved.origin_country ?? current.origin_country,
+    target_level: saved.target_level ?? current.target_level,
+    host_countries: Array.isArray(saved.host_countries)
+      ? saved.host_countries
+      : current.host_countries,
+    fields_of_study: Array.isArray(saved.fields_of_study)
+      ? saved.fields_of_study
+      : current.fields_of_study,
+    ielts_status: saved.ielts_status ?? current.ielts_status,
+    gpa_scale: saved.gpa_scale ?? current.gpa_scale,
+    gpa_value: saved.gpa_value ?? "",
+    gpa_4_equivalent: saved.gpa_4_equivalent ?? null,
+    bs_marks_obtained: saved.bs_marks_obtained ?? "",
+    bs_marks_total: saved.bs_marks_total ?? current.bs_marks_total,
+    funding_preference: saved.funding_preference ?? current.funding_preference,
+    extra_preferences: saved.extra_preferences ?? current.extra_preferences,
+    intake_preference: saved.intake_preference ?? "",
+  };
 }
 
 function profilePayload(form: FormState, onboardingStep: number) {

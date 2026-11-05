@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { CheckCircle2, AlertCircle } from "lucide-react";
 
 export function Toast({
@@ -12,11 +12,15 @@ export function Toast({
   tone?: "success" | "error";
   onHide?: () => void;
 }) {
+  const onHideRef = useRef(onHide);
+  useEffect(() => {
+    onHideRef.current = onHide;
+  }, [onHide]);
   useEffect(() => {
     if (!text) return;
-    const timer = window.setTimeout(() => onHide?.(), 3500);
+    const timer = window.setTimeout(() => onHideRef.current?.(), 3500);
     return () => window.clearTimeout(timer);
-  }, [text, onHide]);
+  }, [text]);
 
   if (!text) return null;
   const Icon = tone === "success" ? CheckCircle2 : AlertCircle;

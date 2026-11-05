@@ -16,6 +16,7 @@ export default function AdminTemplatesPage() {
   const [toast, setToast] = useState("");
   const [editing, setEditing] = useState<AdminTemplate | "new" | null>(null);
   const [deleting, setDeleting] = useState<AdminTemplate | null>(null);
+  const [removing, setRemoving] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -62,8 +63,9 @@ export default function AdminTemplatesPage() {
   }
 
   async function remove() {
-    if (!deleting) return;
+    if (!deleting || removing) return;
     setError("");
+    setRemoving(true);
     try {
       await adminApi.deleteTemplate(deleting.id);
       setToast(`Deleted ${deleting.title}.`);
@@ -71,6 +73,8 @@ export default function AdminTemplatesPage() {
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not delete template.");
+    } finally {
+      setRemoving(false);
     }
   }
 
@@ -169,6 +173,7 @@ export default function AdminTemplatesPage() {
         message={`Delete "${deleting?.title ?? ""}"? This fails if a user document still references it.`}
         confirmLabel="Delete"
         danger
+        busy={removing}
         onConfirm={() => void remove()}
         onCancel={() => setDeleting(null)}
       />

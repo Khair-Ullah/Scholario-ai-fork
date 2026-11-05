@@ -169,7 +169,7 @@ def read_country_map(path: Path) -> dict[str, str]:
         return {row["university_name"]: row["host_country"] for row in csv.DictReader(handle)}
 
 
-def import_country_map(session: Session, path: Path) -> dict[str, int]:
+def import_country_map(session: Session, path: Path, commit: bool = True) -> dict[str, int]:
     report = {"inserted": 0, "updated": 0}
     if not path.exists():
         return report
@@ -188,7 +188,8 @@ def import_country_map(session: Session, path: Path) -> dict[str, int]:
                 report["inserted"] += 1
             else:
                 report["updated"] += 1
-    session.commit()
+    if commit:
+        session.commit()
     return report
 
 

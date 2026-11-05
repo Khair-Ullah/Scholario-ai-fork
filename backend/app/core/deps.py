@@ -45,4 +45,14 @@ def get_current_user(
     user = db.get(User, user_id)
     if user is None or not user.is_active:
         raise HTTPException(status_code=401, detail="Account unavailable", headers={"X-Error-Code": "AUTH_INVALID"})
+    try:
+        token_version = int(claims.get("ver", 0) or 0)
+    except (TypeError, ValueError):
+        token_version = 0
+    if token_version != user.token_version:
+        raise HTTPException(
+            status_code=401,
+            detail="Session has been signed out",
+            headers={"WWW-Authenticate": "Bearer", "X-Error-Code": "AUTH_REVOKED"},
+        )
     return user

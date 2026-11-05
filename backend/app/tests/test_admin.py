@@ -33,7 +33,7 @@ def client():
                     email="admin@example.com",
                     password_hash=hash_password("admin-password-123"),
                     full_name="Admin",
-                    role="admin",
+                    role="super_admin",
                     is_verified=True,
                     plan="pro",
                     referral_code="admin-test-code",
@@ -72,7 +72,7 @@ def test_admin_routes_reject_students(client: TestClient) -> None:
     )
     response = client.get("/api/admin/stats")
     assert response.status_code == 403
-    assert response.json()["code"] == "AUTH_ADMIN_REQUIRED"
+    assert response.json()["code"] == "AUTH_FORBIDDEN"
 
 
 def test_admin_can_edit_scholarship_and_country_mapping(client: TestClient) -> None:
@@ -266,11 +266,11 @@ def test_data_quality_queues(client: TestClient) -> None:
 
 def test_user_list_filters_counts_and_detail(client: TestClient) -> None:
     client.post("/api/auth/admin/login", json={"email": "admin@example.com", "password": "admin-password-123"})
-    listed = client.get("/api/admin/users?role=admin")
+    listed = client.get("/api/admin/users?role=super_admin")
     assert listed.status_code == 200
     assert listed.json()["total"] == 1
     assert listed.json()["counts"]["admins"] == 1
-    assert all(item["role"] == "admin" for item in listed.json()["items"])
+    assert all(item["role"] == "super_admin" for item in listed.json()["items"])
 
     all_users = client.get("/api/admin/users")
     assert all_users.json()["counts"]["total"] >= 1
@@ -302,6 +302,11 @@ def test_user_sessions_and_onboarding_endpoints(client: TestClient) -> None:
     revoked = client.post("/api/admin/users/1/revoke-sessions")
     assert revoked.status_code == 200
     assert isinstance(revoked.json()["revoked"], int)
+
+    reauth = client.post(
+        "/api/auth/admin/login", json={"email": "admin@example.com", "password": "admin-password-123"}
+    )
+    assert reauth.status_code == 200
 
     reset = client.post("/api/admin/users/1/reset-onboarding")
     assert reset.status_code == 200

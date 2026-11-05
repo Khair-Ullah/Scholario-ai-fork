@@ -3,6 +3,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models import AuditLog, User
+from app.services.net import client_ip
 
 SENSITIVE_KEYS = frozenset({"password_hash", "token_hash"})
 
@@ -55,5 +56,4 @@ def log_audit(
 
 
 def request_ip(request: Any) -> str | None:
-    client = getattr(request, "client", None)
-    return client.host if client else None
+    return client_ip(request)

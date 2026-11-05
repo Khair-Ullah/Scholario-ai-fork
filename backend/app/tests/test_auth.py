@@ -95,7 +95,32 @@ def test_admin_login_rejects_student(client: TestClient) -> None:
         "/api/auth/admin/login", json={"email": "student@example.com", "password": "a-strong-test-password"}
     )
     assert response.status_code == 403
-    assert response.json()["code"] == "AUTH_ADMIN_REQUIRED"
+    assert response.json()["code"] == "AUTH_FORBIDDEN"
+
+
+def test_student_login_rejects_staff(client: TestClient) -> None:
+    override = app.dependency_overrides[get_db]
+    session_generator = override()
+    session = next(session_generator)
+    session.add(
+        User(
+            email="staff@example.com",
+            password_hash=hash_password("a-strong-admin-password"),
+            full_name="Test Admin",
+            role="super_admin",
+            is_verified=True,
+            referral_code="test-staff-ref",
+        )
+    )
+    session.commit()
+    session.close()
+
+    response = client.post(
+        "/api/auth/login", json={"email": "staff@example.com", "password": "a-strong-admin-password"}
+    )
+    assert response.status_code == 403
+    assert response.json()["code"] == "AUTH_FORBIDDEN"
+    assert not client.cookies.get("access_token")
 
 
 def test_admin_account_can_use_admin_login(client: TestClient) -> None:
@@ -107,7 +132,7 @@ def test_admin_account_can_use_admin_login(client: TestClient) -> None:
             email="admin@example.com",
             password_hash=hash_password("a-strong-admin-password"),
             full_name="Test Admin",
-            role="admin",
+            role="super_admin",
             is_verified=True,
             referral_code="test-admin-ref",
         )
@@ -119,4 +144,4 @@ def test_admin_account_can_use_admin_login(client: TestClient) -> None:
         "/api/auth/admin/login", json={"email": "admin@example.com", "password": "a-strong-admin-password"}
     )
     assert response.status_code == 200
-    assert response.json()["user"]["role"] == "admin"
+    assert response.json()["user"]["role"] == "super_admin"

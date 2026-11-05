@@ -119,22 +119,30 @@ export default function TemplateEditorPage() {
   useEffect(() => {
     if (editor && previewHTML) editor.commands.setContent(previewHTML);
   }, [editor, previewHTML]);
+  const autosaveTitle = useRef(title);
+  const autosaveAnswers = useRef(answers);
+  useEffect(() => {
+    autosaveTitle.current = title;
+  }, [title]);
+  useEffect(() => {
+    autosaveAnswers.current = answers;
+  }, [answers]);
   useEffect(() => {
     if (!documentId || !editor) return;
     const timer = window.setInterval(() => {
       void apiFetch(`/api/documents/${documentId}`, {
         method: "PUT",
         body: JSON.stringify({
-          title,
+          title: autosaveTitle.current,
           content_html: editor.getHTML(),
-          placeholders_json: answers,
+          placeholders_json: autosaveAnswers.current,
         }),
       })
         .then(() => setMessage("Draft autosaved."))
         .catch(() => setError("Autosave failed. Use Save document to retry."));
     }, 20000);
     return () => window.clearInterval(timer);
-  }, [documentId, editor, title, answers]);
+  }, [documentId, editor]);
   const wordCount =
     editor?.getText().trim().split(/\s+/).filter(Boolean).length || 0;
 

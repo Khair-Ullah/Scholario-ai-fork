@@ -1,9 +1,20 @@
 from io import BytesIO
+from typing import Any
 
 import bleach
 from docx import Document as WordDocument
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
+
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def csv_safe(value: Any) -> str:
+    """Neutralise spreadsheet formula injection when exporting CSV."""
+    text = "" if value is None else str(value)
+    if text[:1] in _FORMULA_PREFIXES:
+        return "'" + text
+    return text
 
 
 def content_text(content_html: str) -> str:

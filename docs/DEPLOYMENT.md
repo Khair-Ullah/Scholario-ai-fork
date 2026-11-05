@@ -4,6 +4,8 @@
 
 Copy the backend and frontend environment examples, then run `docker compose up --build`. The API is on port 8000 and Next.js on port 3000.
 
+If you already run the frontend on the host with `npm run dev` (port 3000), start only the backend container with `make up-backend` (`docker compose up -d backend`). Publishing the frontend container would otherwise fail with `bind: Only one usage of each socket address` / `(HTTP code 500) server error - ports are not available`. Keep using the host dev server at <http://localhost:3000>, which reaches the containerised API at <http://localhost:8000>.
+
 The backend container applies `alembic upgrade head` and `seed_templates` before Uvicorn starts, so a fresh clone only needs the CSV import and the first admin:
 
 ```sh
@@ -16,6 +18,8 @@ Storage layout inside the container: `/data` is bind-mounted from the repository
 `make logs`, `make ps`, `make down`, and `make test` wrap the other routine commands. The build sets `PIP_DEFAULT_TIMEOUT=300` and `PIP_RETRIES=10` and keeps pip's cache layer, so slow or flaky networks do not fail `pip install`.
 
 For manual development without Docker, install `backend/requirements.txt`, run `alembic upgrade head`, start Uvicorn, install frontend npm dependencies, and run `npm run dev`.
+
+`make test-frontend` uses `docker compose run --rm --no-deps` rather than `exec`, so frontend lint and build run in a throwaway container even while a host dev server occupies port 3000.
 
 ## Production outline
 
