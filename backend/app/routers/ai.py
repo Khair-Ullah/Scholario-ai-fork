@@ -1,3 +1,8 @@
+import logging
+import os
+from collections.abc import Callable
+from typing import Any
+
 import bleach
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
@@ -7,10 +12,14 @@ from app.core.deps import get_current_user, get_db
 from app.core.ratelimit import limiter
 from app.models import ChatMessage, ChatSession, Profile, Scholarship, Template, User
 from app.schemas.ai import ChatRequest, FillTemplateRequest, ImproveTextRequest, SopReviewRequest
-from app.services.ai.base import AIProvider
+from app.services.ai.base import AIProvider, AIProviderError
+from app.services.ai.mock_provider import MockProvider
+from app.services.ai.prompts import IMPROVE_SYSTEM
 from app.services.ai.registry import get_provider
 from app.services.entitlements import is_pro
 from app.services.settings import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 def _require_ai_enabled(db: Session = Depends(get_db)) -> None:
@@ -23,6 +32,26 @@ def _require_ai_enabled(db: Session = Depends(get_db)) -> None:
 def _provider(db: Session) -> AIProvider:
     settings = get_settings(db)
     return get_provider(str(settings.get("ai_provider", "mock")))
+
+
+def _run_ai(provider: AIProvider, action: Callable[[Any], Any]) -> tuple[Any, str]:
+    try:
+        return action(provider), provider.name
+    except AIProviderError as exc:
+        logger.warning("AI provider %s failed: %s", provider.name, exc)
+        if os.getenv("AI_FALLBACK_TO_MOCK", "true").strip().lower() != "true":
+            raise HTTPException(
+                status_code=503,
+                detail="AI service is temporarily unavailable",
+                headers={"X-Error-Code": "AI_UNAVAILABLE"},
+            ) from exc
+        return action(MockProvider()), "mock-fallback"
+
+
+def _review_note(provider_name: str) -> str:
+    if provider_name.startswith("mock"):
+        return "Demo AI feedback; review suggestions and keep all claims truthful."
+    return "AI-generated feedback; review suggestions and keep all claims truthful."
 
 
 router = APIRouter(prefix="/api/ai", tags=["AI tools"], dependencies=[Depends(_require_ai_enabled)])
@@ -99,14 +128,14 @@ def chat(
         session_id=session.id, role="user", content=payload.message, tokens=len(payload.message.split())
     )
     db.add(user_message)
-    answer = _provider(db).chat(payload.message, context)
+    answer, provider_name = _run_ai(_provider(db), lambda provider: provider.chat(payload.message, context))
     if not answer:
-        answer = "I could not generate a response just now. Please try again."
+        answer = "I could not generate an answer from the current scholarship data. Please try rephrasing."
     assistant_message = ChatMessage(session_id=session.id, role="assistant", content=answer, tokens=len(answer.split()))
     db.add(assistant_message)
     db.commit()
     db.refresh(assistant_message)
-    return {"session_id": session.id, "message": _message_dict(assistant_message), "provider": "mock"}
+    return {"session_id": session.id, "message": _message_dict(assistant_message), "provider": provider_name}
 
 
 @router.post("/sop-review")
@@ -114,9 +143,9 @@ def chat(
 def review_sop(
     payload: SopReviewRequest, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ) -> dict:
-    result = _provider(db).review_sop(payload.text)
-    result["provider"] = "mock"
-    result["note"] = "Demo AI feedback; review suggestions and keep all claims truthful."
+    result, provider_name = _run_ai(_provider(db), lambda provider: provider.review_sop(payload.text))
+    result["provider"] = provider_name
+    result["note"] = _review_note(provider_name)
     return result
 
 
@@ -125,10 +154,10 @@ def review_sop(
 def improve_text(
     payload: ImproveTextRequest, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ) -> dict[str, str]:
-    return {
-        "text": _provider(db).improve_text(payload.text, payload.instruction),
-        "provider": "mock",
-    }
+    text, provider_name = _run_ai(
+        _provider(db), lambda provider: provider.improve_text(payload.text, payload.instruction)
+    )
+    return {"text": text, "provider": provider_name, "system_prompt": IMPROVE_SYSTEM}
 
 
 @router.post("/fill-template")
@@ -157,7 +186,7 @@ def fill_template(
         "content_html": bleach.clean(
             output, tags=["p", "br", "h1", "h2", "h3", "ul", "ol", "li", "b", "strong", "i", "em"], strip=True
         ),
-        "provider": "mock",
+        "provider": "template",
     }
 
 
@@ -171,11 +200,14 @@ def explain_scholarship(
         raise HTTPException(
             status_code=404, detail="Scholarship not found", headers={"X-Error-Code": "SCHOLARSHIP_NOT_FOUND"}
         )
-    answer = _provider(db).chat(
-        "Explain this scholarship in plain language and include its source-data uncertainty.",
-        [_scholarship_context(scholarship)],
+    answer, provider_name = _run_ai(
+        _provider(db),
+        lambda provider: provider.chat(
+            "Explain this scholarship in plain language and include its source-data uncertainty.",
+            [_scholarship_context(scholarship)],
+        ),
     )
-    return {"text": answer, "provider": "mock"}
+    return {"text": answer, "provider": provider_name}
 
 
 @router.post("/eligibility-check")
@@ -193,7 +225,7 @@ def eligibility_check(
         return {
             "status": "unknown",
             "reasons": ["Complete your study profile to compare requirements."],
-            "provider": "mock",
+            "provider": "rules",
         }
     reasons = []
     if profile.target_level != scholarship.level:
@@ -205,7 +237,7 @@ def eligibility_check(
         "status": status,
         "reasons": reasons or ["The basic level and destination match. Verify all official eligibility rules."],
         "disclaimer": "This is a preliminary comparison, not an eligibility or admission decision.",
-        "provider": "mock",
+        "provider": "rules",
     }
 
 

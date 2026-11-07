@@ -4,6 +4,8 @@ from app.services.ai.base import AIProvider
 
 
 class MockProvider(AIProvider):
+    name = "mock"
+
     def chat(self, message: str, scholarships: list[dict]) -> str:
         question = message.lower()
         if not scholarships:

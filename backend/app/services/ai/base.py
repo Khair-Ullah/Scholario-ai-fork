@@ -1,7 +1,13 @@
 from abc import ABC, abstractmethod
 
 
+class AIProviderError(RuntimeError):
+    pass
+
+
 class AIProvider(ABC):
+    name = "unknown"
+
     @abstractmethod
     def chat(self, message: str, scholarships: list[dict]) -> str:
         raise NotImplementedError
