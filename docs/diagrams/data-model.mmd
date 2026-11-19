@@ -1,0 +1,19 @@
+erDiagram
+  USERS ||--o| PROFILES : has
+  USERS ||--o{ SAVED_SCHOLARSHIPS : saves
+  SCHOLARSHIPS ||--o{ SAVED_SCHOLARSHIPS : appears_in
+  USERS ||--o{ APPLICATIONS : tracks
+  SCHOLARSHIPS ||--o{ APPLICATIONS : receives
+  USERS ||--o{ CHECKLIST_ITEMS : owns
+  USERS ||--o{ DOCUMENTS : owns
+  TEMPLATES ||--o{ DOCUMENTS : starts_from
+  DOCUMENTS ||--o{ DOCUMENT_VERSIONS : versions
+  USERS ||--o{ CHAT_SESSIONS : starts
+  CHAT_SESSIONS ||--o{ CHAT_MESSAGES : contains
+  USERS ||--o{ NOTIFICATIONS : receives
+  USERS ||--o{ REFRESH_TOKENS : has
+  USERS ||--o{ REVOKED_ACCESS_TOKENS : revokes
+  USERS ||--o{ AUTH_ATTEMPTS : produces
+  USERS ||--o{ SCHOLARSHIPS : owns
+  USERS ||--o{ CONSULTANT_WARNINGS : receives
+  USERS ||--o{ AUDIT_LOGS : acts

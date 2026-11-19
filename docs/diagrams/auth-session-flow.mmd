@@ -1,0 +1,34 @@
+sequenceDiagram
+  actor U as User
+  participant FE as Next.js client
+  participant MW as proxy.ts
+  participant API as FastAPI
+  participant DB as Database
+
+  U->>FE: open /dashboard
+  FE->>MW: request
+  alt no access_token cookie
+    MW-->>U: redirect /login?next=/dashboard
+  else cookie present
+    MW-->>FE: allow
+  end
+
+  U->>FE: login with email + password (+ TOTP)
+  FE->>API: POST /api/auth/login (CSRF header)
+  API->>DB: verify bcrypt hash + check lockout
+  API->>DB: store refresh token hash + issue access JWT
+  API-->>FE: Set-Cookie access + refresh + csrftoken
+  FE-->>U: dashboard
+
+  FE->>API: API call with credentials + X-CSRF-Token
+  API->>API: CSRF -> rate limit -> auth deps
+  API->>DB: check jti denylist + token_version + active
+  alt access token expired (401)
+    FE->>API: POST /api/auth/refresh
+    API-->>FE: new access cookie
+    FE->>API: retry original request
+  end
+
+  U->>FE: logout
+  FE->>API: POST /api/auth/logout
+  API->>DB: revoke refresh + deny access jti

@@ -16,6 +16,19 @@ class LoginRequest(BaseModel):
     totp_code: str | None = Field(default=None, max_length=32)
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=16, max_length=200)
+    password: str = Field(min_length=8, max_length=128)
+
+
+class GoogleAuthRequest(BaseModel):
+    credential: str = Field(min_length=20, max_length=5000)
+
+
 class MfaCodeRequest(BaseModel):
     code: str = Field(min_length=1, max_length=32)
 

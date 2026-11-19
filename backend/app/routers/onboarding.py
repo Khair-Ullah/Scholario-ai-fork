@@ -19,7 +19,10 @@ FIELDS = [
     "Engineering & Technology",
     "Arts & Humanities",
 ]
-COUNTRIES = sorted(country.name for country in pycountry.countries)
+NON_STUDY_COUNTRY_CODES = {"AQ"}
+COUNTRIES = sorted(
+    country.name for country in pycountry.countries if country.alpha_2 not in NON_STUDY_COUNTRY_CODES
+)
 
 
 def _get_profile(db: Session, user_id: int) -> Profile:

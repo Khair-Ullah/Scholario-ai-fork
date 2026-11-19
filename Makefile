@@ -1,4 +1,6 @@
-.PHONY: dev up up-backend down build logs ps migrate seed seed-templates seed-admin seed-consultant test test-backend test-frontend
+.PHONY: dev up up-backend down build logs ps migrate migrate-data seed seed-templates seed-admin seed-consultant test test-backend test-frontend
+
+SOURCE_DATABASE_URL ?= sqlite:////app/scholario.db
 
 dev:
 	docker compose up --build
@@ -27,6 +29,11 @@ ps:
 # so `migrate` is only needed for manual re-runs.
 migrate:
 	docker compose exec -T backend python -m alembic upgrade head
+
+# One-time copy of the legacy SQLite database into PostgreSQL. Defaults to the
+# bundled /app/scholario.db; override with SOURCE_DATABASE_URL=sqlite:////path/to/file.db
+migrate-data:
+	docker compose exec -T -e SOURCE_DATABASE_URL=$(SOURCE_DATABASE_URL) backend python -m scripts.migrate_sqlite_to_postgres
 
 seed: migrate
 	docker compose exec -T backend python -m scripts.import_csv --file /data/fully_formated_scholarships.csv --country-map /data/university_country_map.csv

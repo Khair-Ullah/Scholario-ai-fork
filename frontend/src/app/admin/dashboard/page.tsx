@@ -12,6 +12,7 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
+import { EmptyState } from "@/admin/components/EmptyState";
 import { PageHeader } from "@/admin/components/PageHeader";
 import { StatCard } from "@/admin/components/StatCard";
 import { Skeleton } from "@/admin/components/Skeleton";
@@ -87,52 +88,72 @@ export default function AdminDashboardPage() {
 
       <section className="admin-box">
         <h3>Most-saved scholarships</h3>
-        <div className="admin-table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Scholarship</th>
-                <th>Saves</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(stats?.top_saved ?? []).map((row) => (
-                <tr key={row.scholarship_id}>
-                  <td>
-                    <strong>{row.title}</strong>
-                    <small>{row.scholarship_id}</small>
-                  </td>
-                  <td>{row.saves}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {stats ? (
+          (stats.top_saved ?? []).length > 0 ? (
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Scholarship</th>
+                    <th>Saves</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(stats.top_saved ?? []).map((row) => (
+                    <tr key={row.scholarship_id}>
+                      <td>
+                        <strong>{row.title}</strong>
+                        <small>{row.scholarship_id}</small>
+                      </td>
+                      <td>{row.saves}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyState text="No saved scholarships yet." />
+          )
+        ) : (
+          <div className="admin-empty">
+            <Skeleton />
+          </div>
+        )}
       </section>
 
       <section className="admin-box">
         <h3>Latest accounts</h3>
-        <div className="admin-table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Account</th>
-                <th>Joined</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(stats?.latest_users ?? []).map((user) => (
-                <tr key={user.id}>
-                  <td>
-                    <strong>{user.full_name || "—"}</strong>
-                    <small>{user.email}</small>
-                  </td>
-                  <td>{new Date(user.created_at).toLocaleDateString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {stats ? (
+          (stats.latest_users ?? []).length > 0 ? (
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Account</th>
+                    <th>Joined</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(stats.latest_users ?? []).map((user) => (
+                    <tr key={user.id}>
+                      <td>
+                        <strong>{user.full_name || "—"}</strong>
+                        <small>{user.email}</small>
+                      </td>
+                      <td>{new Date(user.created_at).toLocaleDateString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyState text="No accounts yet." />
+          )
+        ) : (
+          <div className="admin-empty">
+            <Skeleton />
+          </div>
+        )}
       </section>
 
       <section className="admin-section">

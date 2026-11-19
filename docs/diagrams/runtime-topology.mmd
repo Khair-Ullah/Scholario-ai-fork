@@ -1,0 +1,31 @@
+flowchart LR
+  B["Browser<br/>localhost:3000"]
+
+  subgraph HOST["Windows host - Docker Desktop / WSL2"]
+    subgraph FE["frontend container<br/>node:22-alpine - Next.js 16 - :3000"]
+      FEAPP["src/app<br/>App Router pages"]
+      FEPROXY["proxy.ts middleware<br/>route guards"]
+      FEAPI["lib/api.ts<br/>CSRF + refresh-on-401"]
+    end
+
+    subgraph BE["backend container<br/>python:3.12-slim - FastAPI - :8000"]
+      BEMAIN["app/main.py<br/>CSRF - rate limit - headers - CORS"]
+      BEROUTERS["app/routers/*<br/>API contracts"]
+      BESVC["app/services/*<br/>matching - ai - import - audit"]
+      BEDB["SQLAlchemy 2 + Alembic"]
+    end
+
+    DB[("SQLite /data/db/scholario.db<br/>or PostgreSQL via DATABASE_URL")]
+    VFE["volumes: bind ./frontend<br/>+ node_modules + .next"]
+    VBE["volumes: bind ./backend<br/>+ /data"]
+  end
+
+  EXT["External adapters<br/>AI: mock or Gemini<br/>Payments / Email (planned)"]
+
+  B -->|HTTP| FEAPP
+  FEAPP --- FEPROXY --- FEAPI
+  FEAPI -->|"/api/* rewrite to http://backend:8000/api/*"| BEMAIN
+  BEMAIN --> BEROUTERS --> BESVC --> BEDB --> DB
+  BESVC --> EXT
+  VFE -.-> FE
+  VBE -.-> BE

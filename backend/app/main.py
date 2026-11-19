@@ -23,6 +23,7 @@ from app.routers.consultant import router as consultant_router
 from app.routers.documents import router as documents_router
 from app.routers.notifications import router as notifications_router
 from app.routers.onboarding import router as onboarding_router
+from app.routers.public import router as public_router
 from app.routers.referral import router as referral_router
 from app.routers.scholarships import router as scholarships_router
 from app.routers.student_data import router as student_data_router
@@ -41,7 +42,8 @@ app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 @app.middleware("http")
 async def csrf_middleware(request: Request, call_next) -> Response:
-    if request.method in UNSAFE_METHODS and not csrf_token_is_valid(request):
+    webhook = request.url.path.startswith("/api/billing/webhook/")
+    if request.method in UNSAFE_METHODS and not webhook and not csrf_token_is_valid(request):
         return JSONResponse(
             status_code=403,
             content={"detail": "CSRF token missing or invalid", "code": "CSRF_FAILED"},
@@ -86,6 +88,7 @@ app.include_router(ai_router)
 app.include_router(referral_router)
 app.include_router(visa_router)
 app.include_router(billing_router)
+app.include_router(public_router)
 app.include_router(admin_router)
 app.include_router(consultant_router)
 

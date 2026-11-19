@@ -1,12 +1,28 @@
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: scholario
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change_this_strong_password}
+      POSTGRES_DB: scholario
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scholario -d scholario"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: ./backend
-    command: sh -c "python -m alembic upgrade head && python -m scripts.seed_templates && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    command: sh -c "python -m alembic upgrade head && python -m scripts.seed_templates && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"
     env_file:
       - ./backend/.env
     environment:
-      DATABASE_URL: ${DATABASE_URL:-sqlite:////data/db/scholario.db}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://scholario:${DB_PASSWORD:-change_this_strong_password}@db:5432/scholario}
       FRONTEND_ORIGINS: http://localhost:3000
       DATA_DIR: /data
     ports:
@@ -14,32 +30,31 @@ services:
     volumes:
       - ./backend:/app
       - ./backend/data:/data
-      - scholario-db:/data/db
+    depends_on:
+      db:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 10s
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 15s
       timeout: 10s
-      retries: 5
-      start_period: 30s
+      retries: 10
+      start_period: 180s
 
   frontend:
     build:
       context: ./frontend
-    command: npm run dev -- --hostname 0.0.0.0
+      args:
+        BACKEND_URL: http://backend:8000
+        NEXT_PUBLIC_API_URL: ""
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
     environment:
       BACKEND_URL: http://backend:8000
-      NEXT_PUBLIC_API_URL: ""
+      NEXT_TELEMETRY_DISABLED: "1"
     ports:
       - "3000:3000"
-    volumes:
-      - ./frontend:/app
-      - frontend-node-modules:/app/node_modules
-      - frontend-next:/app/.next
     depends_on:
       backend:
         condition: service_healthy
 
 volumes:
-  scholario-db:
-  frontend-node-modules:
-  frontend-next:
+  pgdata:

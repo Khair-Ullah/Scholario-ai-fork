@@ -6,6 +6,15 @@ import { PageHeader } from "@/admin/components/PageHeader";
 import { Toast } from "@/admin/components/Toast";
 import { adminApi, type PaymentsSummary } from "@/admin/api";
 
+function formatMoney(amount: number | null, currency: string | null) {
+  if (amount == null) return "-";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: (currency || "USD").toUpperCase(),
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
 export default function AdminPaymentsPage() {
   const [data, setData] = useState<PaymentsSummary | null>(null);
   const [error, setError] = useState("");
@@ -67,6 +76,7 @@ export default function AdminPaymentsPage() {
         reference,
         approve,
         user_id: transfer.user_id ? Number(transfer.user_id) : undefined,
+        note: transfer.note || undefined,
       });
       setToast(approve ? `Approved transfer ${reference}.` : `Rejected transfer ${reference}.`);
       setTransfer({ reference: "", user_id: "", note: "" });
@@ -79,6 +89,8 @@ export default function AdminPaymentsPage() {
   }
 
   const history = data?.history ?? [];
+  const payments = data?.payments ?? [];
+  const revenue = data?.revenue ?? [];
 
   return (
     <div className="admin-page">
@@ -146,6 +158,48 @@ export default function AdminPaymentsPage() {
           <button className="admin-btn danger" disabled={busy !== "" || !transfer.reference} onClick={() => void decide(transfer.reference, false)}>
             Reject
           </button>
+        </div>
+      </section>
+
+      <section className="admin-box">
+        <h3>Stripe payments</h3>
+        <p>
+          {revenue.length > 0
+            ? revenue
+                .map((item) => `${item.count} paid ${item.currency.toUpperCase()} ${item.amount.toFixed(2)}`)
+                .join(" · ")
+            : "No completed Stripe payments recorded yet."}
+        </p>
+        <div className="admin-table-wrap">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Plan</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Reference</th>
+                <th>When</th>
+              </tr>
+            </thead>
+            <tbody>
+              {payments.map((payment) => (
+                <tr key={payment.id}>
+                  <td>{payment.user_id ?? "guest"}</td>
+                  <td>{payment.plan ?? "-"}</td>
+                  <td>{formatMoney(payment.amount, payment.currency)}</td>
+                  <td>
+                    <strong>{payment.status}</strong>
+                  </td>
+                  <td>
+                    <span className="admin-thumb">{payment.reference}</span>
+                  </td>
+                  <td>{payment.created_at ? new Date(payment.created_at).toLocaleString() : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {payments.length === 0 && <div className="admin-empty">No Stripe payments yet.</div>}
         </div>
       </section>
 

@@ -10,7 +10,7 @@ Decisions from the master build prompt:
 6. Keep rows with duplicate titles when scholarship IDs differ.
 7. Recompute selection ratio from Pakistani selected/applicant counts and retain the source percentage for comparison.
 8. Keep access tokens in httpOnly cookies; do not store auth tokens in `localStorage`.
-9. Use SQLite locally and PostgreSQL in production via `DATABASE_URL`.
+9. Use PostgreSQL 16 via Docker Compose (`DATABASE_URL`) for local and production workloads; SQLite remains only for the isolated pytest suite.
 10. Default AI features to an offline mock provider.
 
 ## Implementation decisions

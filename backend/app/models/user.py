@@ -19,6 +19,7 @@ class User(Base):
     plan: Mapped[str] = mapped_column(String(20), default="free", nullable=False)
     plan_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     referral_code: Mapped[str] = mapped_column(String(24), unique=True, nullable=False)
+    google_sub: Mapped[str | None] = mapped_column(String(255), unique=True, index=True)
     referred_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     token_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -69,3 +70,16 @@ class AuthAttempt(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )
+
+
+class AuthToken(Base):
+    __tablename__ = "auth_tokens"
+    __table_args__ = (UniqueConstraint("token_hash", name="uq_auth_tokens_token_hash"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    purpose: Mapped[str] = mapped_column(String(30), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

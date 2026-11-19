@@ -35,6 +35,12 @@ class MatchRequest(BaseModel):
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=100)
     profile: ProfileUpdate | None = None
+    q: str | None = Field(default=None, max_length=200)
+    country: list[str] | None = Field(default=None, max_length=50)
+    field: list[str] | None = Field(default=None, max_length=50)
+    award_type: str | None = Field(default=None, max_length=80)
+    ielts_tier: int | None = Field(default=None, ge=0, le=3)
+    sort: str = Field(default="best_chance", pattern="^(best_chance|deadline|funding|newest)$")
 
 
 class GpaConvertRequest(BaseModel):

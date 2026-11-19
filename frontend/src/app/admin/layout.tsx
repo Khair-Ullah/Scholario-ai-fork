@@ -94,13 +94,12 @@ export default function AdminLayout({
       <aside className={`admin-sidebar ${mobileOpen ? "is-open" : ""}`}>
         <Link href="/admin/dashboard" className="admin-brand">
           <Image
-            className="brand-logo"
-            src="/images/logo/logo.png"
+            className="brand-logo brand-logo-full"
+            src="/images/logo/Nlogo.png"
             alt="Scholario"
-            width={39}
-            height={36}
+            width={810}
+            height={308}
           />
-          scholario<span className="brand-period">.</span>
           <small>ADMIN</small>
         </Link>
         <p className="admin-nav-label">OPERATIONS</p>

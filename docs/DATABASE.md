@@ -1,6 +1,6 @@
 # Database
 
-SQLAlchemy 2 models and Alembic migrations will own schema evolution. Use SQLite for local development and PostgreSQL for deployment. `DATABASE_URL` selects the database.
+SQLAlchemy 2 models and Alembic migrations own schema evolution. Docker Compose runs PostgreSQL 16 for local development and deployment; `DATABASE_URL` selects the database (SQLite remains supported for the isolated pytest suite).
 
 Core entities: users have one profile; profiles match scholarships; users save scholarships and create applications/checklist items; documents belong to users and may reference templates and scholarships; chat sessions own messages; payments and audit records retain operational history. Scholarship IDs come from the source CSV and duplicate titles are valid.
 

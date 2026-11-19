@@ -68,6 +68,77 @@ def _public_scholarship(item: Scholarship) -> dict:
     }
 
 
+def _filter_matches(items: list[Scholarship], payload: MatchRequest) -> list[Scholarship]:
+    filtered = items
+    if payload.q:
+        needle = payload.q.strip().lower()
+        filtered = [
+            item
+            for item in filtered
+            if needle
+            in " ".join(
+                [
+                    str(item.title or ""),
+                    str(item.university_name or ""),
+                    str(item.host_country or ""),
+                    " ".join(str(part) for part in (item.fields_list or [])),
+                ]
+            ).lower()
+        ]
+    if payload.country:
+        countries = set(payload.country)
+        filtered = [item for item in filtered if item.host_country in countries]
+    if payload.field:
+        fields = set(payload.field)
+        filtered = [
+            item for item in filtered if not fields.isdisjoint(item.fields_list or [])
+        ]
+    if payload.award_type:
+        filtered = [
+            item for item in filtered if item.scholarship_type == payload.award_type
+        ]
+    if payload.ielts_tier is not None:
+        filtered = [
+            item
+            for item in filtered
+            if int(item.ielts_tier or 0) <= payload.ielts_tier
+        ]
+    return filtered
+
+
+def _funding_score(item: Scholarship) -> float:
+    value = (item.source_data or {}).get("total_funding_score") or 0
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _sort_matches(items: list[Scholarship], sort: str) -> list[Scholarship]:
+    if sort == "deadline":
+        return sorted(items, key=lambda item: (item.deadline_date or date.max))
+    if sort == "funding":
+        return sorted(items, key=lambda item: -_funding_score(item))
+    if sort == "newest":
+        return sorted(
+            items,
+            key=lambda item: str(
+                (item.source_data or {}).get("scraped_at")
+                or (item.source_data or {}).get("created_at")
+                or item.scholarship_id
+            ),
+            reverse=True,
+        )
+    return sorted(
+        items,
+        key=lambda item: -(
+            item.selection_ratio_percent
+            if item.selection_ratio_percent is not None
+            else -1
+        ),
+    )
+
+
 @router.get("")
 def browse(
     q: str | None = None,
@@ -197,6 +268,9 @@ def match(payload: MatchRequest, db: Session = Depends(get_db), user: User = Dep
         }
     candidates = db.scalars(select(Scholarship).where(Scholarship.is_active.is_(True))).all()
     matches = match_scholarships(list(candidates), profile)
+    facets = result_facets(matches)
+    matches = _filter_matches(matches, payload)
+    matches = _sort_matches(matches, payload.sort)
     total = len(matches)
     limit = pro_result_limit(db) if is_pro(user) else free_result_limit(db)
     start = (payload.page - 1) * payload.page_size
@@ -206,7 +280,7 @@ def match(payload: MatchRequest, db: Session = Depends(get_db), user: User = Dep
         "total": min(total, limit),
         "page": payload.page,
         "page_size": payload.page_size,
-        "facets": result_facets(matches[:limit]),
+        "facets": facets,
         "gpa_missing": profile["gpa_4_equivalent"] is None and profile["gpa_value"] is None,
         "final_tier_cap": final_tier_cap(profile),
     }

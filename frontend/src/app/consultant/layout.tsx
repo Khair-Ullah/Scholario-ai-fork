@@ -78,13 +78,12 @@ export default function ConsultantLayout({ children }: Readonly<{ children: Reac
       <aside className={`admin-sidebar ${mobileOpen ? "is-open" : ""}`}>
         <Link href="/consultant/dashboard" className="admin-brand">
           <Image
-            className="brand-logo"
-            src="/images/logo/logo.png"
+            className="brand-logo brand-logo-full"
+            src="/images/logo/Nlogo.png"
             alt="Scholario"
-            width={39}
-            height={36}
+            width={810}
+            height={308}
           />
-          scholario<span className="brand-period">.</span>
           <small>CONSULTANT</small>
         </Link>
         <p className="admin-nav-label">WORKSPACE</p>

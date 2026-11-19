@@ -112,6 +112,18 @@ export type PaymentsSummary = {
   disabled: number;
   pro_expiring_soon: number;
   history: { id: number; action: string; actor_email?: string | null; created_at?: string | null; diff?: unknown }[];
+  payments: {
+    id: number;
+    user_id: number | null;
+    provider: string;
+    reference: string;
+    amount: number | null;
+    currency: string | null;
+    plan: string | null;
+    status: string;
+    created_at: string | null;
+  }[];
+  revenue: { currency: string; count: number; amount: number }[];
   note: string;
 };
 

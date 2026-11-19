@@ -23,6 +23,7 @@ from app.models import (
     ConsultantWarning,
     Document,
     Notification,
+    Payment,
     Profile,
     RefreshToken,
     SavedScholarship,
@@ -1382,6 +1383,35 @@ def payments_summary(
     transfer_queue = [
         entry for entry in history if entry["action"] == "payment.transfer_approved"
     ]
+    payment_rows = db.scalars(
+        select(Payment).order_by(desc(Payment.created_at)).limit(50)
+    ).all()
+    payments = [
+        {
+            "id": row.id,
+            "user_id": row.user_id,
+            "provider": row.provider,
+            "reference": row.provider_ref,
+            "amount": row.amount,
+            "currency": row.currency,
+            "plan": row.plan,
+            "status": row.status,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+        }
+        for row in payment_rows
+    ]
+    revenue = [
+        {"currency": (currency or "usd"), "count": count, "amount": float(total or 0)}
+        for currency, count, total in db.execute(
+            select(
+                Payment.currency,
+                func.count(Payment.id),
+                func.coalesce(func.sum(Payment.amount), 0),
+            )
+            .where(Payment.status == "succeeded")
+            .group_by(Payment.currency)
+        ).all()
+    ]
     return {
         "plan_counts": {"free": plan_counts.get("free", 0), "pro": plan_counts.get("pro", 0)},
         "disabled": db.scalar(select(func.count(User.id)).where(User.is_active.is_(False))) or 0,
@@ -1393,7 +1423,12 @@ def payments_summary(
         or 0,
         "transfer_queue": transfer_queue,
         "history": history,
-        "note": "No payment model yet - grants and transfer approvals are recorded in the audit trail.",
+        "payments": payments,
+        "revenue": revenue,
+        "note": (
+            "Stripe checkouts and invoices are recorded automatically. "
+            "Manual grants and transfer decisions are also written to the audit trail."
+        ),
     }
 
 
@@ -1598,6 +1633,15 @@ def _admin_scholarship(item: Scholarship) -> dict:
         "level": item.level,
         "scholarship_type": item.scholarship_type,
         "is_active": item.is_active,
+        "deadline_date": item.deadline_date.isoformat() if item.deadline_date else None,
+        "deadline_kind": item.deadline_kind,
+        "ielts_required": item.ielts_required,
+        "ielts_band": item.ielts_band,
+        "ielts_tier": item.ielts_tier,
+        "fields_list": item.fields_list,
+        "docs_list": item.docs_list,
+        "description_text": item.description_text,
+        "selection_ratio_percent": item.selection_ratio_percent,
         "source_data": item.source_data,
     }
 

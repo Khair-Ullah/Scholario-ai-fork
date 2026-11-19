@@ -2,6 +2,7 @@ import os
 import secrets
 from datetime import UTC, datetime, timedelta
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
@@ -23,18 +24,22 @@ from app.core.security import (
     verify_password,
     verify_totp,
 )
-from app.models import RefreshToken, User
+from app.models import AuthToken, RefreshToken, User
 from app.schemas.user import (
     AuthResponse,
+    ForgotPasswordRequest,
+    GoogleAuthRequest,
     LoginRequest,
     MfaCodeRequest,
     MfaSetupResponse,
     MfaStatusResponse,
+    ResetPasswordRequest,
     UserCreate,
     UserPublic,
 )
 from app.services import auth_guard
 from app.services.audit import log_audit, request_ip
+from app.services.email import send_password_reset
 from app.services.net import client_ip
 from app.services.settings import get_settings
 from app.services.token_blocklist import purge_expired, revoke_access_claims
@@ -46,6 +51,30 @@ REFRESH_DAYS = int(os.getenv("REFRESH_TOKEN_DAYS", "14"))
 _DUMMY_PASSWORD_HASH = (
     "$bcrypt-sha256$v=2,t=2b,r=12$xOTkqZpffusT0PKwgAaZ9e$YLm0wztOGPgimLTllpuzvBu1OFJsYAW"
 )
+
+PASSWORD_RESET_MINUTES = 30
+
+
+def _frontend_base() -> str:
+    return os.getenv("FRONTEND_BASE_URL", "http://localhost:3000").rstrip("/")
+
+
+def _issue_auth_token(db: Session, user: User, purpose: str, minutes: int) -> str:
+    db.execute(
+        update(AuthToken)
+        .where(AuthToken.user_id == user.id, AuthToken.purpose == purpose, AuthToken.used.is_(False))
+        .values(used=True)
+    )
+    raw = secrets.token_urlsafe(32)
+    db.add(
+        AuthToken(
+            user_id=user.id,
+            purpose=purpose,
+            token_hash=hash_token(raw),
+            expires_at=datetime.now(UTC) + timedelta(minutes=minutes),
+        )
+    )
+    return raw
 
 
 def _set_session(response: Response, user: User, db: Session, request: Request) -> None:
@@ -222,6 +251,167 @@ def register(payload: UserCreate, request: Request, response: Response, db: Sess
     return AuthResponse(
         user=UserPublic.model_validate(user), message="Account created. Email verification is not configured yet."
     )
+
+
+@router.post("/forgot-password", status_code=202)
+@limiter.limit("5/minute")
+def forgot_password(
+    payload: ForgotPasswordRequest, request: Request, db: Session = Depends(get_db)
+) -> dict[str, str]:
+    email = str(payload.email).lower()
+    user = db.scalar(select(User).where(User.email == email))
+    if user is not None and user.is_active:
+        token = _issue_auth_token(db, user, "password_reset", PASSWORD_RESET_MINUTES)
+        link = f"{_frontend_base()}/reset-password?token={token}"
+        send_password_reset(user.email, link)
+        log_audit(
+            db,
+            actor=None,
+            action="auth.password_reset_requested",
+            entity="auth",
+            actor_email=email,
+            ip=request_ip(request),
+        )
+        db.commit()
+    # Always return the same message so callers cannot discover registered emails.
+    return {"message": "If an account exists for that email, we've sent reset instructions."}
+
+
+@router.post("/reset-password")
+@limiter.limit("5/minute")
+def reset_password(
+    payload: ResetPasswordRequest, request: Request, db: Session = Depends(get_db)
+) -> dict[str, str]:
+    stored = db.scalar(
+        select(AuthToken).where(
+            AuthToken.token_hash == hash_token(payload.token),
+            AuthToken.purpose == "password_reset",
+        )
+    )
+    if (
+        stored is None
+        or stored.used
+        or stored.expires_at.replace(tzinfo=UTC) <= datetime.now(UTC)
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="This reset link is invalid or has expired. Please request a new one.",
+            headers={"X-Error-Code": "RESET_INVALID"},
+        )
+    user = db.get(User, stored.user_id)
+    if user is None or not user.is_active:
+        raise HTTPException(
+            status_code=400,
+            detail="This reset link is invalid or has expired. Please request a new one.",
+            headers={"X-Error-Code": "RESET_INVALID"},
+        )
+    user.password_hash = hash_password(payload.password)
+    stored.used = True
+    _revoke_user_sessions(db, user)
+    log_audit(
+        db,
+        actor=user,
+        action="auth.password_reset",
+        entity="user",
+        entity_id=user.id,
+        ip=request_ip(request),
+    )
+    db.commit()
+    return {"message": "Password updated. Please sign in with your new password."}
+
+
+@router.post("/google", response_model=AuthResponse)
+@limiter.limit("10/minute")
+def google_auth(
+    payload: GoogleAuthRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+) -> AuthResponse:
+    client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip()
+    if not client_id:
+        raise HTTPException(
+            status_code=503,
+            detail="Google sign-in is not configured",
+            headers={"X-Error-Code": "GOOGLE_AUTH_DISABLED"},
+        )
+    try:
+        verified = httpx.get(
+            "https://oauth2.googleapis.com/tokeninfo",
+            params={"id_token": payload.credential},
+            timeout=10,
+        )
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Could not reach Google to verify sign-in. Please try again.",
+            headers={"X-Error-Code": "GOOGLE_UNAVAILABLE"},
+        ) from exc
+    if verified.status_code != 200:
+        raise HTTPException(
+            status_code=401,
+            detail="Google sign-in could not be verified",
+            headers={"X-Error-Code": "GOOGLE_INVALID"},
+        )
+    info = verified.json()
+    if str(info.get("aud", "")) != client_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Google sign-in could not be verified",
+            headers={"X-Error-Code": "GOOGLE_INVALID"},
+        )
+    if str(info.get("email_verified", "")).lower() not in {"true", "1"}:
+        raise HTTPException(
+            status_code=401,
+            detail="Your Google email is not verified",
+            headers={"X-Error-Code": "GOOGLE_EMAIL_UNVERIFIED"},
+        )
+    email = str(info.get("email", "")).lower()
+    subject = str(info.get("sub", ""))
+    if not email or not subject:
+        raise HTTPException(
+            status_code=401,
+            detail="Google sign-in could not be verified",
+            headers={"X-Error-Code": "GOOGLE_INVALID"},
+        )
+
+    user = db.scalar(select(User).where(User.google_sub == subject))
+    if user is None:
+        user = db.scalar(select(User).where(User.email == email))
+    if user is None:
+        display_name = str(info.get("name") or email.split("@")[0])[:200]
+        user = User(
+            email=email,
+            password_hash=hash_password(secrets.token_urlsafe(32)),
+            full_name=display_name,
+            referral_code=secrets.token_urlsafe(9),
+            is_verified=True,
+            google_sub=subject,
+        )
+        db.add(user)
+        db.flush()
+    else:
+        if not user.is_active:
+            raise HTTPException(
+                status_code=403, detail="Account is inactive", headers={"X-Error-Code": "AUTH_INACTIVE"}
+            )
+        if user.role != ROLE_STUDENT:
+            raise HTTPException(
+                status_code=403,
+                detail="This is the student sign-in. Please use your dedicated portal.",
+                headers={"X-Error-Code": "AUTH_FORBIDDEN"},
+            )
+        if not user.google_sub:
+            user.google_sub = subject
+        if not user.is_verified:
+            user.is_verified = True
+
+    auth_guard.clear_attempts(db, email)
+    user.last_login_at = datetime.now(UTC)
+    _set_session(response, user, db, request)
+    db.commit()
+    db.refresh(user)
+    return AuthResponse(user=UserPublic.model_validate(user), message="Signed in with Google")
 
 
 @router.post("/login", response_model=AuthResponse)

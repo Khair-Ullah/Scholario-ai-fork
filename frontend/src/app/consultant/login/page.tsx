@@ -43,14 +43,13 @@ export default function ConsultantLoginPage() {
     <main className="admin-login">
       <Link href="/" className="admin-login-brand">
         <Image
-          className="brand-logo"
-          src="/images/logo/logo.png"
+          className="brand-logo brand-logo-full"
+          src="/images/logo/Nlogo.png"
           alt="Scholario"
-          width={39}
-          height={36}
+          width={810}
+          height={308}
           priority
         />
-        scholario<span className="brand-period">.</span>
         <span className="admin-login-role">CONSULTANT</span>
       </Link>
       <section>

@@ -127,6 +127,13 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}, retry = 
     if (retry && (await refreshSession())) return apiFetch<T>(path, init, false);
     await endSession();
   }
+  if (response.status === 403 && retry && (await redirectOnRoleMismatch(response, path))) {
+    throw new ApiError(
+      "Your session is signed in as a different account. Please sign in again.",
+      403,
+      "AUTH_FORBIDDEN",
+    );
+  }
   if (response.status === 403 && retry && (await readCsrfFailure(response))) {
     await ensureCsrfTokenForce();
     return apiFetch<T>(path, init, false);
@@ -143,6 +150,34 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}, retry = 
 async function readCsrfFailure(response: Response): Promise<boolean> {
   const body = await response.clone().json().catch(() => ({}));
   return body.code === "CSRF_FAILED";
+}
+
+async function redirectOnRoleMismatch(response: Response, requestPath: string): Promise<boolean> {
+  if (typeof window === "undefined" || requestPath.startsWith("/api/auth/")) return false;
+  const body = (await response.clone().json().catch(() => ({}))) as { code?: string };
+  if (body.code !== "AUTH_FORBIDDEN") return false;
+
+  const pagePath = window.location.pathname;
+  if (pagePath === "/admin/login" || pagePath === "/consultant/login") return false;
+  const requiredRole = pagePath.startsWith("/admin")
+    ? "super_admin"
+    : pagePath.startsWith("/consultant")
+      ? "consultant"
+      : null;
+  if (!requiredRole) return false;
+
+  try {
+    const meResponse = await fetch(`${API_URL}/api/auth/me`, { credentials: "include", cache: "no-store" });
+    if (!meResponse.ok) return false;
+    const me = (await meResponse.json().catch(() => null)) as { role?: string } | null;
+    if (!me?.role || me.role === requiredRole) return false;
+
+    resetSessionCache();
+    window.location.assign(requiredRole === "super_admin" ? "/admin/login" : "/consultant/login");
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function ensureCsrfTokenForce(): Promise<void> {

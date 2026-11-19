@@ -1,0 +1,15 @@
+sequenceDiagram
+  actor S as Student
+  participant FE as Next.js
+  participant API as /api/scholarships/match
+  participant M as matching service
+  participant DB as Database
+
+  S->>FE: profile / filters
+  FE->>API: POST /match
+  API->>DB: load profile + active scholarships
+  API->>M: match_scholarships(candidates, profile)
+  Note over M: normalize level<br/>GPA to g4 then gpa_cap<br/>IELTS cap = min(ielts, gpa)<br/>filter level + tier + country + field
+  M-->>API: eligible list ranked by<br/>selection ratio then deadline then funding
+  API-->>FE: results + facets
+  FE-->>S: ranked scholarships

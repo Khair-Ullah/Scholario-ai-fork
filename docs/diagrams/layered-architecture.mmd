@@ -1,0 +1,32 @@
+flowchart TB
+  subgraph CLIENT["CLIENT - Next.js App Router"]
+    direction LR
+    UI["Pages and layouts<br/>src/app/**"]
+    COMP["Shared components<br/>AppShell + admin/components"]
+    STORE["State<br/>Zustand + React Query"]
+    CAPI["lib/api.ts<br/>CSRF + refresh + expiry redirect"]
+  end
+
+  subgraph SERVER["SERVER - FastAPI"]
+    MW["Middleware<br/>CSRF - rate limit - headers - CORS"]
+    RT["Routers<br/>auth - scholarships - student_data<br/>documents - ai - billing - admin - consultant"]
+    SVC["Services<br/>matching - gpa - csv_import - export<br/>entitlements - settings - audit - auth_guard"]
+    AI["AI registry<br/>Mock or Gemini"]
+    SCH["Pydantic schemas"]
+    ORM["SQLAlchemy models"]
+  end
+
+  subgraph DATA["DATA"]
+    DB[("SQLite / PostgreSQL")]
+    MIG["Alembic migrations"]
+    FILES[("Uploads / documents<br/>DATA_DIR")]
+  end
+
+  UI --> CAPI --> MW --> RT --> SVC
+  RT --> SCH
+  SVC --> ORM --> DB
+  MIG --> DB
+  SVC --> AI
+  SVC --> FILES
+  UI --- COMP
+  UI --- STORE

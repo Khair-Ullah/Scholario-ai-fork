@@ -12,7 +12,7 @@ The target product includes student onboarding, explainable scholarship matching
 | --- | --- |
 | Frontend | Next.js App Router, TypeScript, Tailwind CSS |
 | Backend | FastAPI, SQLAlchemy 2, Pydantic v2 |
-| Database | SQLite for development; PostgreSQL via `DATABASE_URL` |
+| Database | PostgreSQL 16 via Docker Compose; `DATABASE_URL` selects the database |
 | Tests | pytest, httpx; frontend build checks |
 | Operations | Docker Compose, Alembic, GitHub Actions |
 
