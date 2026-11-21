@@ -13,7 +13,21 @@ def list_notifications(db: Session = Depends(get_db), user: User = Depends(get_c
     items = db.scalars(
         select(Notification).where(Notification.user_id == user.id).order_by(Notification.created_at.desc())
     ).all()
-    return {"items": items, "unread_count": sum(not item.is_read for item in items)}
+    return {
+        "items": [
+            {
+                "id": item.id,
+                "title": item.title,
+                "body": item.body,
+                "kind": item.kind,
+                "link": item.link,
+                "is_read": item.is_read,
+                "created_at": item.created_at,
+            }
+            for item in items
+        ],
+        "unread_count": sum(not item.is_read for item in items),
+    }
 
 
 @router.patch("/{notification_id}/read")

@@ -1,14 +1,28 @@
 # Scholario — Pre-Deploy Checklist
 
-**Last updated:** 2026-11-17
+**Last updated:** 2026-11-20
 
-**Status:** NOT READY for public production.
+**Status:** NOT READY for public production. Deployment target is now
+**Vercel (frontend) + Railway (API/Postgres)**; external service and operational
+sign-offs are still pending.
 
 This file is the short, actionable list of what must be finished before a real
 deployment. The full background is in
 [`docs/PRODUCTION_READINESS.md`](docs/PRODUCTION_READINESS.md). The current
 [`docker-compose.yml`](docker-compose.yml) is for local development only — do not
-expose it to the internet.
+expose it to the internet. Production steps and required variables are in
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
+---
+
+## Selected production target
+
+| Layer | Platform | Config in this repo |
+| --- | --- | --- |
+| Frontend | Vercel, Root Directory `frontend` | `frontend/vercel.json`, `frontend/next.config.mjs` |
+| API | Railway, Root Directory `backend` | `backend/railway.toml`, `backend/Dockerfile.railway`, `backend/requirements.prod.txt` |
+| Database | Railway Postgres | private project network; URL supplied as `DATABASE_URL` |
+| Browser → API | Same-origin `/api` rewrite | `NEXT_PUBLIC_API_URL` empty, `BACKEND_URL` required on Vercel |
 
 ---
 
@@ -34,6 +48,20 @@ approval before launch.
 | Rate limiting is in-memory only | `backend/app/core/ratelimit.py:13` |
 | Only a lightweight `/health`, no DB readiness endpoint | `backend/app/main.py:102` |
 | No restart policy, log rotation, resource limits, or frontend healthcheck | `docker-compose.yml` |
+
+### Status against the selected target
+
+| Checklist area | Status | Evidence / remaining work |
+| --- | --- | --- |
+| 1. Production network isolation | N/A as written | Vercel + Railway replace `docker-compose.prod.yml`; Postgres is not published. Verify Railway network and Vercel domain before launch. |
+| 2. Secrets and configuration | Partial | `validate_production_config()`, env docs, and prod Dockerfile/templates added. Real secrets/domain must still be set in the platforms. |
+| 3. Database and migrations | Partial | `preDeployCommand` runs migrations + template seed; `/ready` added. Fresh-DB migration test, backups, restore drill, and 9,338/844/33/8 counts still pending. |
+| 4. Runtime hardening | Partial | Prod image pins Python `3.12.16`, pinned deps, non-root user; Railway restart policy and `/ready` configured. Redis rate limiting, logs, and limits remain platform/provider work. |
+| 5. Rate limiting and abuse | Partial | `TRUST_PROXY_HEADERS=true` and in-memory limits raised; Redis-backed storage and staff 2FA enforcement still pending. |
+| 6. Observability | Pending | Sentry, structured logs, uptime checks, alerts, and retention not configured. |
+| 7. External service smoke tests | Pending | Stripe, Google, SMTP, and AI not yet verified with production credentials. |
+| 8. CI/CD and release gate | Partial | Ruff, pytest coverage, lint, and build are green; Postgres CI job, Docker builds in CI, Playwright, Lighthouse, audits, and deploy blocking remain. |
+| 9. Launch operations | Pending | Domain, TLS, support address, legal, on-call, MFA accounts, and explicit sign-off remain. |
 
 ---
 
@@ -175,17 +203,19 @@ approval before launch.
 - Alembic migrations through `0013_accounts_payments`.
 - Public pages, student workspace, admin panel, consultant workspace, billing,
   Google sign-in, password reset, and legal-page drafts.
-- Recorded verification: 95 backend tests pass; Ruff, ESLint, TypeScript, and
-  frontend build pass.
+- Recorded verification: 109 backend tests pass (service coverage 83.51%);
+  Ruff, ESLint, TypeScript, Vercel env guard, config validation, and frontend
+  production build pass.
 
 ---
 
 ## Recommended implementation order
 
-1. Create `docker-compose.prod.yml` with private networking, a migration job,
-   restart policies, log rotation, resource limits, non-root users, and a
-   reverse proxy.
-2. Add startup configuration validation and a database readiness endpoint.
+1. ~~Create `docker-compose.prod.yml`...~~ Replaced by the selected Vercel +
+   Railway target (`docs/DEPLOYMENT.md`); verify the platform network, domain,
+   restart policy, and proxy settings instead.
+2. ~~Add startup configuration validation and a database readiness endpoint.~~
+   Done: `validate_production_config()` and `/ready`.
 3. Add CI with a PostgreSQL integration job and migration smoke test.
 4. Add optional Redis-backed rate limiting.
 5. Add backup/restore scripts and the SQLite migration guard.
@@ -197,7 +227,9 @@ approval before launch.
 
 ## Definition of done
 
-- [ ] `docker compose -f docker-compose.prod.yml config` is valid.
+- [x] Production target is selected and documented: Vercel + Railway.
+- [x] Startup validation, `/ready`, pinned prod image/deps, and env inventory exist.
+- [ ] `docker compose -f docker-compose.prod.yml config` is valid (N/A for the selected target; verify Vercel/Railway config instead).
 - [ ] A fresh database passes migrations, template seed, and smoke tests.
 - [ ] No secrets exist in images, Git history, or logs.
 - [ ] A database backup has been restored successfully in a test environment.

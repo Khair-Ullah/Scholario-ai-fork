@@ -22,7 +22,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { apiFetch, getMe, resetSessionCache } from "@/lib/api";
+import { apiFetch, getMe, isAuthError, resetSessionCache } from "@/lib/api";
 
 const adminLinks = [
   { href: "/admin/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -48,20 +48,27 @@ export default function AdminLayout({
   const router = useRouter();
   const [allowed, setAllowed] = useState(false);
   const [checking, setChecking] = useState(true);
+  const [accessError, setAccessError] = useState("");
+  const [retry, setRetry] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
   useEffect(() => {
     if (pathname === "/admin/login") {
       return;
     }
     let active = true;
-    getMe()
+    getMe(retry > 0)
       .then((user) => {
         if (!active) return;
-        if (user.role === "super_admin") setAllowed(true);
-        else router.replace("/admin/login");
+        setAllowed(user.role === "super_admin");
+        if (user.role !== "super_admin") router.replace("/admin/login");
       })
-      .catch(() => {
-        if (active) router.replace("/admin/login");
+      .catch((cause) => {
+        if (!active) return;
+        if (isAuthError(cause)) {
+          router.replace("/admin/login");
+          return;
+        }
+        setAccessError(cause instanceof Error ? cause.message : "Could not verify administrator access.");
       })
       .finally(() => {
         if (active) setChecking(false);
@@ -69,8 +76,27 @@ export default function AdminLayout({
     return () => {
       active = false;
     };
-  }, [pathname, router]);
+  }, [pathname, router, retry]);
   if (pathname === "/admin/login") return children;
+  if (accessError)
+    return (
+      <div className="admin-loading">
+        <div>
+          <ShieldCheck size={20} />
+          <p>{accessError}</p>
+          <button
+            className="primary-button"
+            onClick={() => {
+              setAccessError("");
+              setChecking(true);
+              setRetry((value) => value + 1);
+            }}
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    );
   if (checking || !allowed)
     return (
       <div className="admin-loading">

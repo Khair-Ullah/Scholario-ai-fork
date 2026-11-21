@@ -15,7 +15,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { apiFetch, getMe, resetSessionCache } from "@/lib/api";
+import { apiFetch, getMe, isAuthError, resetSessionCache } from "@/lib/api";
 
 const consultantLinks = [
   { href: "/consultant/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -32,19 +32,26 @@ export default function ConsultantLayout({ children }: Readonly<{ children: Reac
   const router = useRouter();
   const [allowed, setAllowed] = useState(false);
   const [checking, setChecking] = useState(true);
+  const [accessError, setAccessError] = useState("");
+  const [retry, setRetry] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     if (pathname === "/consultant/login") return;
     let active = true;
-    getMe()
+    getMe(retry > 0)
       .then((user) => {
         if (!active) return;
-        if (user.role === "consultant") setAllowed(true);
-        else router.replace("/consultant/login");
+        setAllowed(user.role === "consultant");
+        if (user.role !== "consultant") router.replace("/consultant/login");
       })
-      .catch(() => {
-        if (active) router.replace("/consultant/login");
+      .catch((cause) => {
+        if (!active) return;
+        if (isAuthError(cause)) {
+          router.replace("/consultant/login");
+          return;
+        }
+        setAccessError(cause instanceof Error ? cause.message : "Could not verify consultant access.");
       })
       .finally(() => {
         if (active) setChecking(false);
@@ -52,9 +59,28 @@ export default function ConsultantLayout({ children }: Readonly<{ children: Reac
     return () => {
       active = false;
     };
-  }, [pathname, router]);
+  }, [pathname, router, retry]);
 
   if (pathname === "/consultant/login") return children;
+  if (accessError)
+    return (
+      <div className="admin-loading">
+        <div>
+          <Briefcase size={20} />
+          <p>{accessError}</p>
+          <button
+            className="primary-button"
+            onClick={() => {
+              setAccessError("");
+              setChecking(true);
+              setRetry((value) => value + 1);
+            }}
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    );
   if (checking || !allowed)
     return (
       <div className="admin-loading">

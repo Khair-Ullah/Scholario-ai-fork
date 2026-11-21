@@ -19,3 +19,7 @@ coverage/
 .~lock.*#
 *.db
 !backend/data/*.db
+~$*
+*.tmp
+README_top.txt
+

@@ -25,6 +25,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://scholario:${DB_PASSWORD:-change_this_strong_password}@db:5432/scholario}
       FRONTEND_ORIGINS: http://localhost:3000
       DATA_DIR: /data
+      TRUST_PROXY_HEADERS: "true"
     ports:
       - "8000:8000"
     volumes:

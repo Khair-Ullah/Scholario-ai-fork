@@ -10,7 +10,7 @@ def _rate_limit_key(request: Request) -> str:
     return client_ip(request) or "unknown"
 
 
-limiter = Limiter(key_func=_rate_limit_key, default_limits=["60/minute"])
+limiter = Limiter(key_func=_rate_limit_key, default_limits=["600/minute"])
 
 
 def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:

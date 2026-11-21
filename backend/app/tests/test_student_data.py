@@ -7,7 +7,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.deps import get_db
 from app.db.base import Base
 from app.main import app
-from app.models import Scholarship
+from app.models import Notification, Scholarship
 from app.tests.helpers import apply_csrf
 
 
@@ -98,6 +98,35 @@ def test_tracker_updates_and_cannot_be_read_by_another_user(client: TestClient) 
     apply_csrf(client)
     assert client.get("/api/applications").json() == []
     assert client.patch(f"/api/applications/{application_id}", json={"status": "accepted"}).status_code == 404
+
+
+def test_ready_endpoint_checks_database(client: TestClient) -> None:
+    response = client.get("/ready")
+    assert response.status_code == 200
+    assert response.json()["status"] == "ready"
+
+
+@pytest.mark.parametrize("path", ["/api/health", "/api/ready"])
+def test_health_aliases_work_through_api_proxy(client: TestClient, path: str) -> None:
+    response = client.get(path)
+    assert response.status_code == 200
+    assert "status" in response.json()
+
+
+def test_notifications_endpoint_returns_serialized_items(client: TestClient) -> None:
+    register(client, "notified@example.com")
+    user_id = client.get("/api/auth/me").json()["id"]
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        db.add(Notification(user_id=user_id, title="Update", body="Your account is ready.", kind="system"))
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.get("/api/notifications")
+    assert response.status_code == 200
+    assert response.json()["unread_count"] == 1
+    assert response.json()["items"][0]["title"] == "Update"
 
 
 def test_generated_checklist_contains_only_required_items_and_is_repeatable(client: TestClient) -> None:

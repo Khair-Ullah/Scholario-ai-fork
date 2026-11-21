@@ -15,6 +15,22 @@ export class ApiError extends Error {
   }
 }
 
+const AUTH_ERROR_CODES = new Set([
+  "AUTH_REQUIRED",
+  "AUTH_REVOKED",
+  "AUTH_INVALID",
+  "AUTH_INACTIVE",
+  "AUTH_FORBIDDEN",
+  "REFRESH_INVALID",
+  "REFRESH_REUSED",
+]);
+
+export function isAuthError(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return false;
+  if (error.status === 401) return true;
+  return error.status === 403 && !!error.code && AUTH_ERROR_CODES.has(error.code);
+}
+
 function readCookie(name: string): string | undefined {
   if (typeof document === "undefined") return undefined;
   const match = document.cookie.split("; ").find((part) => part.startsWith(`${name}=`));
@@ -39,9 +55,9 @@ export async function csrfHeaders(): Promise<Record<string, string>> {
   return token ? { [CSRF_HEADER]: token } : {};
 }
 
-let refreshRequest: Promise<boolean> | null = null;
+let refreshRequest: Promise<number> | null = null;
 
-function refreshSession(): Promise<boolean> {
+function refreshSession(): Promise<number> {
   if (!refreshRequest) {
     // Assign synchronously so concurrent 401s share one refresh call instead of
     // racing and tripping the backend's refresh-token reuse detection.
@@ -52,9 +68,9 @@ function refreshSession(): Promise<boolean> {
           credentials: "include",
           headers: await csrfHeaders(),
         });
-        return response.ok;
+        return response.status;
       } catch {
-        return false;
+        return 0;
       } finally {
         refreshRequest = null;
       }
@@ -124,7 +140,13 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}, retry = 
   }
   const response = await fetch(`${API_URL}${path}`, { ...init, headers, credentials: "include" });
   if (response.status === 401 && !path.startsWith("/api/auth/")) {
-    if (retry && (await refreshSession())) return apiFetch<T>(path, init, false);
+    if (retry) {
+      const refreshStatus = await refreshSession();
+      if (refreshStatus === 200) return apiFetch<T>(path, init, false);
+      if (refreshStatus !== 401 && refreshStatus !== 403) {
+        throw new ApiError("The service is temporarily unavailable. Please try again.", refreshStatus || 503);
+      }
+    }
     await endSession();
   }
   if (response.status === 403 && retry && (await redirectOnRoleMismatch(response, path))) {

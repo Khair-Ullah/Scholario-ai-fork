@@ -1,22 +1,23 @@
-/*
-** @type {import('next').NextConfig} 
-const nextConfig = {
-  reactStrictMode: true,
-  outputFileTracingRoot: process.cwd(),
-};
+/** @type {import('next').NextConfig} */
+const isVercel = process.env.VERCEL === "1";
+const publicApiUrl = (process.env.NEXT_PUBLIC_API_URL ?? "").trim();
+const backend = (process.env.BACKEND_URL ?? publicApiUrl ?? "http://localhost:8000").trim();
 
-export default nextConfig;
-*/
+if (isVercel && (!backend || backend.includes("localhost"))) {
+  throw new Error("BACKEND_URL must be set to the public FastAPI origin on Vercel.");
+}
+if (isVercel && publicApiUrl) {
+  throw new Error("Leave NEXT_PUBLIC_API_URL empty on Vercel so /api stays same-origin.");
+}
 
 /** @type {import('next').NextConfig} */
-const backend = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
 const nextConfig = {
+  reactStrictMode: true,
   async rewrites() {
     return [
       {
         source: "/api/:path*",
-        destination: `${backend}/api/:path*`,
+        destination: `${backend.replace(/\/$/, "")}/api/:path*`,
       },
     ];
   },

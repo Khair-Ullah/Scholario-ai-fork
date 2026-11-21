@@ -1,11 +1,14 @@
 import os
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
+from app.core.config import validate_production_config
 from app.core.csrf import (
     CSRF_COOKIE,
     UNSAFE_METHODS,
@@ -14,6 +17,7 @@ from app.core.csrf import (
     response_already_sets_csrf_cookie,
     set_csrf_cookie,
 )
+from app.core.deps import get_db
 from app.core.ratelimit import limiter, rate_limit_exceeded_handler
 from app.routers.admin import router as admin_router
 from app.routers.ai import router as ai_router
@@ -29,6 +33,8 @@ from app.routers.scholarships import router as scholarships_router
 from app.routers.student_data import router as student_data_router
 from app.routers.users import router as users_router
 from app.routers.visa import router as visa_router
+
+validate_production_config()
 
 app = FastAPI(
     title="Scholario API",
@@ -102,3 +108,19 @@ async def http_error_handler(request: Request, exc: HTTPException) -> JSONRespon
 @app.get("/health", tags=["health"])
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "scholario-api"}
+
+
+@app.get("/ready", tags=["health"])
+def ready(db: Session = Depends(get_db)) -> dict[str, str]:
+    db.execute(text("SELECT 1"))
+    return {"status": "ready", "service": "scholario-api"}
+
+
+@app.get("/api/health", include_in_schema=False)
+def api_health() -> dict[str, str]:
+    return health()
+
+
+@app.get("/api/ready", include_in_schema=False)
+def api_ready(db: Session = Depends(get_db)) -> dict[str, str]:
+    return ready(db)

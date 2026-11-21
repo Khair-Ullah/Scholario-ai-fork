@@ -1,8 +1,13 @@
 # Production Readiness Checklist
 
-**Status:** Draft — pending team decision on the production target.
-**Last updated:** 2026-11-11
+**Status:** Target decided: Vercel frontend + Railway API/Postgres. External
+service and operational sign-offs are still pending.
+**Last updated:** 2026-11-20
 **Owner:** TBD
+
+See [`DEPLOYMENT.md`](DEPLOYMENT.md) for the concrete platform setup and
+[`DEPLOY_CHECKLIST.md`](../DEPLOY_CHECKLIST.md) for the current item-by-item
+status.
 
 **Quick actionable version:** [`DEPLOY_CHECKLIST.md`](../DEPLOY_CHECKLIST.md)
 
