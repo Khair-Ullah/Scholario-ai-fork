@@ -15,7 +15,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { apiFetch, getMe, isAuthError, resetSessionCache } from "@/lib/api";
+import { getMe, isAuthError, signOut } from "@/lib/api";
 
 const consultantLinks = [
   { href: "/consultant/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -88,13 +88,8 @@ export default function ConsultantLayout({ children }: Readonly<{ children: Reac
       </div>
     );
 
-  async function signOut() {
-    resetSessionCache();
-    try {
-      await apiFetch("/api/auth/logout", { method: "POST" });
-    } finally {
-      router.replace("/consultant/login");
-    }
+  async function handleSignOut() {
+    await signOut("/consultant/login");
   }
 
   const crumbs = pathname.slice("/consultant".length).split("/").filter(Boolean);
@@ -126,7 +121,7 @@ export default function ConsultantLayout({ children }: Readonly<{ children: Reac
             </Link>
           ))}
         </nav>
-        <button className="admin-signout" onClick={signOut}>
+        <button className="admin-signout" onClick={handleSignOut}>
           <LogOut size={16} /> Sign out
         </button>
       </aside>

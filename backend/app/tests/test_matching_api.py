@@ -86,6 +86,37 @@ def test_onboarding_profile_persists_and_match_uses_it(client: TestClient) -> No
     assert payload["facets"]["host_country"] == {"Germany": 3}
 
 
+def test_matching_accepts_masters_alias_and_explains_empty_filters(client: TestClient) -> None:
+    client.post(
+        "/api/auth/register",
+        json={"email": "alias@example.com", "password": "test-password-123", "full_name": "Alias Student"},
+    )
+    saved = client.put(
+        "/api/onboarding/step",
+        json={
+            "origin_country": "Pakistan",
+            "target_level": "Masters",
+            "host_countries": ["Germany"],
+            "fields_of_study": ["Engineering & Technology"],
+            "ielts_status": "taking_7",
+            "gpa_scale": "4.0",
+            "gpa_value": 3.4,
+            "funding_preference": "with_stipend",
+            "onboarding_step": 7,
+        },
+    )
+    assert saved.status_code == 200
+
+    response = client.post("/api/scholarships/match", json={"page": 1, "page_size": 10})
+    assert response.status_code == 200
+    assert response.json()["total"] == 3
+
+    filtered = client.post("/api/scholarships/match", json={"country": ["France"]})
+    assert filtered.status_code == 200
+    assert filtered.json()["total"] == 0
+    assert "Clear the filters" in filtered.json()["message"]
+
+
 def test_gpa_convert_tool_returns_percentage_and_equivalent(client: TestClient) -> None:
     response = client.post("/api/tools/gpa-convert", json={"scale": "percentage", "value": 82})
     assert response.status_code == 200

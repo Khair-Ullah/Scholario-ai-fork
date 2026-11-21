@@ -100,15 +100,33 @@ export function getMe(force = false): Promise<SessionUser> {
 const SESSION_EXPIRED_KEY = "scholario.session-expired";
 let endingSession = false;
 
-async function endSession(): Promise<void> {
-  if (typeof window === "undefined" || endingSession) return;
-  endingSession = true;
-  resetSessionCache();
+function clearClientSessionCookies(): void {
+  if (typeof document === "undefined") return;
+  document.cookie = `${CSRF_COOKIE}=; Max-Age=0; path=/`;
+}
+
+async function logoutRequest(): Promise<void> {
   try {
     await apiFetch("/api/auth/logout", { method: "POST" });
   } catch {
     // best effort — cookies may already be gone or the API unreachable
   }
+  clearClientSessionCookies();
+}
+
+export async function signOut(loginPath = "/login"): Promise<void> {
+  if (typeof window === "undefined") return;
+  resetSessionCache();
+  sessionStorage.removeItem(SESSION_EXPIRED_KEY);
+  await logoutRequest();
+  window.location.assign(loginPath);
+}
+
+async function endSession(): Promise<void> {
+  if (typeof window === "undefined" || endingSession) return;
+  endingSession = true;
+  resetSessionCache();
+  await logoutRequest();
   const path = window.location.pathname;
   const onConsultant = path.startsWith("/consultant");
   const onAdmin = path.startsWith("/admin");

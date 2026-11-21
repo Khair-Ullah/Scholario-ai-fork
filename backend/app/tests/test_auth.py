@@ -55,6 +55,33 @@ def test_register_me_refresh_and_logout(client: TestClient) -> None:
     assert client.get("/api/auth/me").status_code == 401
 
 
+def test_logout_clears_browser_cookies(client: TestClient) -> None:
+    client.post(
+        "/api/auth/register",
+        json={
+            "email": "cookies@example.com",
+            "password": "a-strong-test-password",
+            "full_name": "Cookie Student",
+        },
+    )
+    assert client.cookies.get("access_token")
+    assert client.cookies.get("refresh_token")
+
+    response = client.post("/api/auth/logout")
+    assert response.status_code == 200
+    set_cookies = [header.lower() for header in response.headers.get_list("set-cookie")]
+    assert any(
+        "access_token=" in header and "max-age=0" in header and "path=/" in header
+        for header in set_cookies
+    )
+    assert any(
+        "refresh_token=" in header and "max-age=0" in header and "path=/api/auth" in header
+        for header in set_cookies
+    )
+    assert client.cookies.get("access_token") is None
+    assert client.cookies.get("refresh_token") is None
+
+
 def test_logout_revokes_stolen_access_token(client: TestClient) -> None:
     client.post(
         "/api/auth/register",

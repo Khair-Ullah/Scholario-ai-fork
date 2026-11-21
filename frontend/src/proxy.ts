@@ -43,9 +43,6 @@ export function proxy(request: NextRequest) {
     login.searchParams.set("next", path);
     return NextResponse.redirect(login);
   }
-  if ((path === "/login" || path === "/register") && hasSession) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
-  }
   return NextResponse.next();
 }
 

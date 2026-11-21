@@ -1,7 +1,15 @@
 from datetime import date
 from types import SimpleNamespace
 
-from app.services.matching import GENERAL_FIELD, final_tier_cap, match_scholarships, profile_g4
+import pytest
+
+from app.services.matching import (
+    GENERAL_FIELD,
+    canonical_level,
+    final_tier_cap,
+    match_scholarships,
+    profile_g4,
+)
 
 
 def profile(**updates):
@@ -94,3 +102,24 @@ def test_empty_host_country_list_matches_every_destination():
 def test_specific_field_also_matches_general_field_rows():
     matched = match_scholarships(catalog(), profile(fields_of_study=["Engineering & Technology"]))
     assert any(item.fields_list == [GENERAL_FIELD] for item in matched)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("Masters", "Master"),
+        ("master's", "Master"),
+        ("MSc", "Master"),
+        ("Bachelors", "Undergraduate"),
+        ("BS", "Undergraduate"),
+        ("PhD", "PhD"),
+        ("Doctorate", "PhD"),
+    ],
+)
+def test_canonical_level_accepts_common_profile_variants(value: str, expected: str) -> None:
+    assert canonical_level(value) == expected
+
+
+def test_masters_spelling_still_matches_master_catalog() -> None:
+    matched = match_scholarships(catalog(), profile(target_level="Masters"))
+    assert len(matched) == 8

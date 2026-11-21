@@ -275,7 +275,7 @@ def match(payload: MatchRequest, db: Session = Depends(get_db), user: User = Dep
     limit = pro_result_limit(db) if is_pro(user) else free_result_limit(db)
     start = (payload.page - 1) * payload.page_size
     page_items = matches[start : min(start + payload.page_size, limit)] if start < limit else []
-    return {
+    response = {
         "items": [_public_scholarship(item) for item in page_items],
         "total": min(total, limit),
         "page": payload.page,
@@ -284,3 +284,11 @@ def match(payload: MatchRequest, db: Session = Depends(get_db), user: User = Dep
         "gpa_missing": profile["gpa_4_equivalent"] is None and profile["gpa_value"] is None,
         "final_tier_cap": final_tier_cap(profile),
     }
+    if total == 0:
+        response["message"] = (
+            "No scholarships match this profile yet. Try widening your country/field choices "
+            "or updating your IELTS and GPA details."
+            if not facets
+            else "No scholarships match the current filters. Clear the filters to see all eligible results."
+        )
+    return response

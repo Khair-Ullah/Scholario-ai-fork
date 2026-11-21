@@ -24,7 +24,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { apiFetch, getMe } from "@/lib/api";
+import { apiFetch, getMe, signOut } from "@/lib/api";
 
 type ShellLink = {
   href: string;
@@ -173,12 +173,8 @@ export default function AppShell({
     };
   }, [moreOpen]);
 
-  async function signOut() {
-    try {
-      await apiFetch("/api/auth/logout", { method: "POST" });
-    } finally {
-      router.replace("/login");
-    }
+  async function handleSignOut() {
+    await signOut("/login");
   }
 
   const moreActive = !primaryPaths.some((href) => within(path, href));
@@ -239,7 +235,7 @@ export default function AppShell({
             <Settings2 size={17} strokeWidth={1.8} />
             <span>Profile & account</span>
           </Link>
-          <button className="sidebar-link signout-link" onClick={signOut}>
+          <button className="sidebar-link signout-link" onClick={handleSignOut}>
             <LogOut size={17} strokeWidth={1.8} />
             <span>Sign out</span>
           </button>
@@ -405,7 +401,7 @@ export default function AppShell({
                 <button
                   type="button"
                   className="app-more-signout"
-                  onClick={signOut}
+                  onClick={handleSignOut}
                 >
                   <LogOut size={17} /> Sign out
                 </button>

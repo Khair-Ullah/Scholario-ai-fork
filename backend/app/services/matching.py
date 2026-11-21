@@ -8,12 +8,22 @@ from app.services.gpa import bs_marks_to_g4, to_g4
 IELTS_CAPS = {"not_taking": 0, "taking_6": 1, "taking_7": 2, "taking_8": 3}
 LEVEL_ALIASES = {
     "bachelor": "Undergraduate",
+    "bachelors": "Undergraduate",
     "bachelor's": "Undergraduate",
     "bachelor's (undergraduate)": "Undergraduate",
+    "undergrad": "Undergraduate",
     "undergraduate": "Undergraduate",
-    "master's": "Master",
+    "bs": "Undergraduate",
+    "b.s": "Undergraduate",
     "master": "Master",
+    "masters": "Master",
+    "master's": "Master",
+    "ms": "Master",
+    "m.s": "Master",
+    "msc": "Master",
+    "m.sc": "Master",
     "phd": "PhD",
+    "doctorate": "PhD",
 }
 GENERAL_FIELD = "General / Any Field of Study"
 
@@ -21,7 +31,9 @@ GENERAL_FIELD = "General / Any Field of Study"
 def canonical_level(level: str | None) -> str | None:
     if level is None:
         return None
-    return LEVEL_ALIASES.get(level.strip().lower(), level.strip())
+    normalized = " ".join(level.strip().lower().replace("’", "'").split())
+    canonical = LEVEL_ALIASES.get(normalized)
+    return canonical if canonical is not None else level.strip()
 
 
 def profile_g4(profile: Any) -> float | None:
