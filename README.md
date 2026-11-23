@@ -1,5 +1,7 @@
-ï»¿# Scholario
+# Scholario
 
+> **Live Demo:** [https://scholario-ai.vercel.app/](https://scholario-ai.vercel.app/)  
+> **Backend API:** [https://scholario-ai-production.up.railway.app](https://scholario-ai-production.up.railway.app)
 Scholario is a scholarship discovery and application workspace for students, with a focus on opportunities relevant to students from Pakistan. This repository is being rebuilt as a FastAPI + Next.js application following [SCHOLARIO_MASTER_PROMPT.md](SCHOLARIO_MASTER_PROMPT.md). Legacy prototype HTML files are preserved under `frontend/prototype/` as visual references; they are not the new application source.
 
 ## Features and status
@@ -62,7 +64,7 @@ The billing module will use a provider interface and verified webhooks. See [doc
 
 ## Deployment and administration
 
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the planned deployment guide. The platform has three roles: `student`, `consultant`, and `super_admin`. Super admins sign in at `/admin` and manage the catalogue, consultants, users, templates, announcements, payments, settings, audit, and warnings. Consultants sign in at `/consultant` and manage only the scholarships they own, view the students who engage with them, and acknowledge platform warnings. Consultant accounts are created by a super admin (panel or `make seed-consultant EMAIL=â€¦ PASSWORD=â€¦ NAME="â€¦"`); staff logins support TOTP two-factor authentication.
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the planned deployment guide. The platform has three roles: `student`, `consultant`, and `super_admin`. Super admins sign in at `/admin` and manage the catalogue, consultants, users, templates, announcements, payments, settings, audit, and warnings. Consultants sign in at `/consultant` and manage only the scholarships they own, view the students who engage with them, and acknowledge platform warnings. Consultant accounts are created by a super admin (panel or `make seed-consultant EMAIL=… PASSWORD=… NAME="…"`); staff logins support TOTP two-factor authentication.
 
 ## Testing and API
 
@@ -74,12 +76,12 @@ Keep changes aligned with the master build prompt and record implementation deci
 
 ## Progress
 
-- [x] Steps 1â€“14 â€” Scaffold through core student workflows and partial admin tools (2026-10-03)
-- [ ] Step 15 â€” Lighthouse/accessibility review and SEO metadata verification
-- [ ] Step 16 â€” 80% service coverage, Playwright smoke flow, CI gates
-- [ ] Step 17 â€” Final deployment, payment, AI, and SRS documentation review
-- [x] Step 20 â€” Logout hardening: access-token denylist on logout and a global session-expiry redirect in the API client (2026-10-08)
-- [x] Step 21 â€” Roles split (`student`/`consultant`/`super_admin`), scholarship ownership, `/consultant` workspace, TOTP 2FA with recovery codes, failed-login lockout, and suspicious-activity warnings (2026-10-10)
+- [x] Steps 1–14 — Scaffold through core student workflows and partial admin tools (2026-10-03)
+- [ ] Step 15 — Lighthouse/accessibility review and SEO metadata verification
+- [ ] Step 16 — 80% service coverage, Playwright smoke flow, CI gates
+- [ ] Step 17 — Final deployment, payment, AI, and SRS documentation review
+- [x] Step 20 — Logout hardening: access-token denylist on logout and a global session-expiry redirect in the API client (2026-10-08)
+- [x] Step 21 — Roles split (`student`/`consultant`/`super_admin`), scholarship ownership, `/consultant` workspace, TOTP 2FA with recovery codes, failed-login lockout, and suspicious-activity warnings (2026-10-10)
 
 This is a substantial first implementation, not yet the complete acceptance-tested product. Remaining work is recorded in [docs/PROGRESS.md](docs/PROGRESS.md), including partial admin/billing features, an eight-template starter set, security follow-ups, and unavailable Docker Compose verification.
 
