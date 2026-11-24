@@ -2,6 +2,8 @@ import os
 import secrets
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy import func
+
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import select, update
@@ -245,6 +247,10 @@ def register(payload: UserCreate, request: Request, response: Response, db: Sess
     )
     db.add(user)
     db.flush()
+    if referrer is not None:
+        referred_count = db.scalar(select(func.count(User.id)).where(User.referred_by_id == referrer.id)) or 0
+        if referred_count >= 3 and referrer.plan != "pro":
+            referrer.plan = "pro"
     _set_session(response, user, db, request)
     db.commit()
     db.refresh(user)

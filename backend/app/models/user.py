@@ -21,6 +21,7 @@ class User(Base):
     referral_code: Mapped[str] = mapped_column(String(24), unique=True, nullable=False)
     google_sub: Mapped[str | None] = mapped_column(String(255), unique=True, index=True)
     referred_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    referral_rewards_given: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     token_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     totp_secret: Mapped[str | None] = mapped_column(String(64))
