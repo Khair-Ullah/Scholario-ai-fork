@@ -1,6 +1,7 @@
 # Scholario
 
-> **Notice:** Registration page is currently in the building stage; please bear with us. Live link: (https://scholario-ai.vercel.app/)
+> [!CAUTION]
+> **NOTICE:** Registration page is currently in the building stage; please bear with us. Live link: (https://scholario-ai.vercel.app/)
 
 > **Live Demo:** [https://scholario-ai.vercel.app/](https://scholario-ai.vercel.app/)
 Scholario is a scholarship discovery and application workspace for students, with a focus on opportunities relevant to students from Pakistan. This repository is being rebuilt as a FastAPI + Next.js application following [SCHOLARIO_MASTER_PROMPT.md](SCHOLARIO_MASTER_PROMPT.md). Legacy prototype HTML files are preserved under `frontend/prototype/` as visual references; they are not the new application source.
