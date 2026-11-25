@@ -10,6 +10,7 @@ python-dotenv>=1.0,<2
 pandas>=2.2,<4
 pycountry>=24.6,<27
 python-jose[cryptography]>=3.3,<4
+google-auth[requests]>=2.35,<3
 pyotp>=2.9,<3
 passlib[bcrypt]>=1.7,<2
 bcrypt>=4.0,<4.1

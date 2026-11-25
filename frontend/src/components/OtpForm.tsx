@@ -1,14 +1,13 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, CheckCircle2, RefreshCw } from "lucide-react";
-import { OTP_MODE, OtpServiceError, requestOtp, resendOtp, verifyOtp } from "@/lib/auth-otp";
-import type { OtpPurpose, OtpVerificationResult } from "@/lib/auth-otp";
+import { OTP_MODE, OtpServiceError, resendEmailOtp, verifyEmailOtp } from "@/lib/auth-otp";
 
-type Phase = "sending" | "ready" | "verifying" | "success";
+type Phase = "ready" | "verifying" | "success";
 
-const RESEND_SECONDS = 45;
+const RESEND_SECONDS = 60;
 
 function messageFor(error: OtpServiceError): string {
   switch (error.code) {
@@ -16,6 +15,7 @@ function messageFor(error: OtpServiceError): string {
       return "That code does not look right. Check it and try again.";
     case "OTP_EXPIRED":
       return "That code has expired. Request a new one to continue.";
+    case "OTP_LIMIT":
     case "RATE_LIMITED":
       return "Too many attempts. Please wait a moment before trying again.";
     case "INTEGRATION_PENDING":
@@ -27,37 +27,14 @@ function messageFor(error: OtpServiceError): string {
   }
 }
 
-export default function OtpForm({ purpose, email }: { purpose: OtpPurpose; email: string }) {
+export default function OtpForm({ email }: { email: string }) {
   const router = useRouter();
-  const [code, setCode] = useState("");
-  const [phase, setPhase] = useState<Phase>("sending");
+  const [otp, setOtp] = useState("");
+  const [phase, setPhase] = useState<Phase>("ready");
+  const [resending, setResending] = useState(false);
   const [error, setError] = useState("");
-  const [cooldown, setCooldown] = useState(0);
-  const [result, setResult] = useState<OtpVerificationResult | null>(null);
-  const requestedRef = useRef(false);
-
-  const sendInitial = useCallback(async () => {
-    setPhase("sending");
-    setError("");
-    try {
-      await requestOtp(purpose, email);
-      setCooldown(RESEND_SECONDS);
-      setPhase("ready");
-    } catch (cause) {
-      setError(
-        cause instanceof OtpServiceError
-          ? messageFor(cause)
-          : "We could not send the verification code.",
-      );
-      setPhase("ready");
-    }
-  }, [email, purpose]);
-
-  useEffect(() => {
-    if (requestedRef.current) return;
-    requestedRef.current = true;
-    void sendInitial();
-  }, [sendInitial]);
+  const [cooldown, setCooldown] = useState(RESEND_SECONDS);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -66,26 +43,22 @@ export default function OtpForm({ purpose, email }: { purpose: OtpPurpose; email
   }, [cooldown]);
 
   useEffect(() => {
-    if (phase !== "success" || !result) return;
-    const target =
-      purpose === "registration"
-        ? "/login"
-        : `/reset-password?token=${encodeURIComponent(result.status === "reset_token" ? result.resetToken : "")}`;
-    const timer = window.setTimeout(() => router.replace(target), 1200);
+    if (phase !== "success") return;
+    const timer = window.setTimeout(() => router.replace("/login?verified=1"), 1200);
     return () => window.clearTimeout(timer);
-  }, [phase, purpose, result, router]);
+  }, [phase, router]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!/^\d{6}$/.test(code)) {
+    if (!/^\d{6}$/.test(otp)) {
       setError("Enter the 6-digit code from your email.");
       return;
     }
     setPhase("verifying");
     setError("");
+    setMessage("");
     try {
-      const verified = await verifyOtp(purpose, email, code);
-      setResult(verified);
+      await verifyEmailOtp(email, otp);
       setPhase("success");
     } catch (cause) {
       const otpError =
@@ -93,30 +66,32 @@ export default function OtpForm({ purpose, email }: { purpose: OtpPurpose; email
           ? cause
           : new OtpServiceError("We could not verify that code.", "NETWORK");
       setError(messageFor(otpError));
-      setCode("");
+      setOtp("");
       if (otpError.code === "OTP_EXPIRED") setCooldown(0);
-      if (otpError.code === "RATE_LIMITED") setCooldown(RESEND_SECONDS);
+      if (otpError.code === "OTP_LIMIT" || otpError.code === "RATE_LIMITED") setCooldown(RESEND_SECONDS);
       setPhase("ready");
     }
   }
 
   async function resend() {
-    if (cooldown > 0 || phase === "sending" || phase === "verifying") return;
-    setPhase("sending");
+    if (resending || cooldown > 0 || phase !== "ready") return;
+    setResending(true);
     setError("");
+    setMessage("");
     try {
-      await resendOtp(purpose, email);
-      setCode("");
+      await resendEmailOtp(email);
+      setOtp("");
       setCooldown(RESEND_SECONDS);
-      setPhase("ready");
+      setMessage("A new verification code has been sent.");
     } catch (cause) {
       const otpError =
         cause instanceof OtpServiceError
           ? cause
           : new OtpServiceError("We could not resend the verification code.", "NETWORK");
       setError(messageFor(otpError));
-      if (otpError.code === "RATE_LIMITED") setCooldown(RESEND_SECONDS);
-      setPhase("ready");
+      if (otpError.code === "OTP_LIMIT" || otpError.code === "RATE_LIMITED") setCooldown(RESEND_SECONDS);
+    } finally {
+      setResending(false);
     }
   }
 
@@ -126,27 +101,19 @@ export default function OtpForm({ purpose, email }: { purpose: OtpPurpose; email
         <span className="authgate-success-icon">
           <CheckCircle2 size={22} />
         </span>
-        <p className="authgate-success-copy">
-          {purpose === "registration"
-            ? "Your email is verified. You can sign in now."
-            : "Code verified. Choose a new password next."}
-        </p>
-        <p className="authgate-success-note">
-          {purpose === "registration"
-            ? "Redirecting you to sign in..."
-            : "Redirecting you to password reset..."}
-        </p>
+        <p className="authgate-success-copy">Your email is verified. You can sign in now.</p>
+        <p className="authgate-success-note">Redirecting you to sign in...</p>
       </div>
     );
   }
 
-  const busy = phase === "sending" || phase === "verifying";
+  const busy = phase === "verifying" || resending;
 
   return (
     <>
       <form onSubmit={submit} className="authgate-form">
         <label className="authgate-field">
-          <span>Verification code</span>
+          <span>Six-digit verification code</span>
           <span className="authgate-password">
             <input
               type="text"
@@ -155,8 +122,8 @@ export default function OtpForm({ purpose, email }: { purpose: OtpPurpose; email
               pattern="[0-9]*"
               maxLength={6}
               required
-              value={code}
-              onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+              value={otp}
+              onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))}
               placeholder="000000"
               disabled={busy}
               aria-label="6-digit verification code"
@@ -173,15 +140,14 @@ export default function OtpForm({ purpose, email }: { purpose: OtpPurpose; email
             {error}
           </p>
         )}
+        {message && (
+          <p className="authgate-success-note" role="status">
+            {message}
+          </p>
+        )}
 
         <button className="authgate-submit" disabled={busy}>
-          <span>
-            {phase === "verifying"
-              ? "Verifying..."
-              : phase === "sending"
-                ? "Sending code..."
-                : "Verify code"}
-          </span>
+          <span>{phase === "verifying" ? "Verifying..." : "Verify email"}</span>
           {phase === "verifying" ? <RefreshCw size={17} /> : <ArrowRight size={17} />}
         </button>
       </form>
@@ -193,11 +159,7 @@ export default function OtpForm({ purpose, email }: { purpose: OtpPurpose; email
         onClick={resend}
         disabled={busy || cooldown > 0}
       >
-        {cooldown > 0
-          ? `Resend in ${cooldown}s`
-          : phase === "sending"
-            ? "Sending..."
-            : "Resend code"}
+        {cooldown > 0 ? `Resend in ${cooldown}s` : resending ? "Sending..." : "Resend code"}
       </button>
 
       {OTP_MODE === "mock" && (

@@ -6,6 +6,7 @@ from app.core.ratelimit import limiter
 
 os.environ["AI_PROVIDER"] = "mock"
 os.environ["AI_FALLBACK_TO_MOCK"] = "true"
+os.environ.setdefault("REQUIRE_EMAIL_VERIFICATION", "false")
 
 
 @pytest.fixture(autouse=True)

@@ -70,6 +70,18 @@ def send_verification(to: str, link: str) -> bool:
     return _send(to, "Confirm your Scholario email", body)
 
 
+def send_verification_otp(to: str, otp: str) -> bool:
+    body = (
+        "Welcome to Scholario!\n\n"
+        "Your email verification code is:\n\n"
+        f"{otp}\n\n"
+        "This code expires in 10 minutes.\n"
+        "Do not share this code with anyone.\n\n"
+        "If you did not create this account, you can ignore this email.\n"
+    )
+    return _send(to, "Verify your Scholario account", body)
+
+
 def send_contact_message(name: str, email: str, topic: str, message: str) -> bool:
     inbox = os.getenv("CONTACT_INBOX", "support@scholario.ai")
     body = (

@@ -1,3 +1,4 @@
+import os
 from collections.abc import Generator
 
 from fastapi import Cookie, Depends, Header, HTTPException
@@ -12,6 +13,10 @@ from app.services.token_blocklist import is_access_revoked
 def get_db() -> Generator[Session, None, None]:
     with SessionLocal() as session:
         yield session
+
+
+def _email_verification_required() -> bool:
+    return os.getenv("REQUIRE_EMAIL_VERIFICATION", "true").strip().lower() not in {"0", "false", "no", "off"}
 
 
 def get_current_user(
@@ -45,6 +50,12 @@ def get_current_user(
     user = db.get(User, user_id)
     if user is None or not user.is_active:
         raise HTTPException(status_code=401, detail="Account unavailable", headers={"X-Error-Code": "AUTH_INVALID"})
+    if _email_verification_required() and not user.is_verified:
+        raise HTTPException(
+            status_code=403,
+            detail="Email verification required",
+            headers={"X-Error-Code": "EMAIL_NOT_VERIFIED"},
+        )
     try:
         token_version = int(claims.get("ver", 0) or 0)
     except (TypeError, ValueError):

@@ -1,21 +1,24 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import AuthGate, { AuthLink, AuthSwitchLink } from "@/components/AuthGate";
 import GoogleButton from "@/components/GoogleButton";
 import { ApiError, apiFetch, resetSessionCache } from "@/lib/api";
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [forbidden, setForbidden] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  const verified = searchParams.get("verified") === "1";
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -28,7 +31,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
       resetSessionCache();
-      const next = new URLSearchParams(window.location.search).get("next");
+      const next = searchParams.get("next");
       const safeNext =
         next && next.startsWith("/") && !next.startsWith("//") && !next.includes("\\")
           ? next
@@ -36,7 +39,11 @@ export default function LoginPage() {
       router.replace(safeNext);
     } catch (cause) {
       if (cause instanceof ApiError && cause.code === "AUTH_FORBIDDEN") setForbidden(true);
-      setError(cause instanceof Error ? cause.message : "Could not sign in.");
+      if (cause instanceof ApiError && cause.code === "EMAIL_NOT_VERIFIED") {
+        setError("Please verify your email before signing in. Check your inbox for the code.");
+      } else {
+        setError(cause instanceof Error ? cause.message : "Could not sign in.");
+      }
     } finally {
       setBusy(false);
     }
@@ -114,6 +121,11 @@ export default function LoginPage() {
           </span>
         </label>
 
+        {verified && (
+          <p className="authgate-success-note" role="status">
+            Email verified. You can sign in now.
+          </p>
+        )}
         {error && (
           <p className="authgate-error" role="alert">
             {error}
@@ -134,5 +146,19 @@ export default function LoginPage() {
 
       <GoogleButton mode="signin" />
     </AuthGate>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="authgate-viewport">
+          <p className="authgate-loading">Loading sign in...</p>
+        </main>
+      }
+    >
+      <LoginContent />
+    </Suspense>
   );
 }

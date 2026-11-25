@@ -7,7 +7,6 @@ import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import AuthGate, { AuthSwitchLink } from "@/components/AuthGate";
 import GoogleButton from "@/components/GoogleButton";
 import { apiFetch } from "@/lib/api";
-import { clearRegistrationSession } from "@/lib/auth-otp";
 import { PASSWORD_STRENGTH_LABELS, passwordScore } from "@/lib/password";
 
 export default function RegisterPage() {
@@ -38,10 +37,7 @@ export default function RegisterPage() {
         method: "POST",
         body: JSON.stringify({ ...form, referral_code: referralCode }),
       });
-      await clearRegistrationSession();
-      router.replace(
-        `/verify-otp?purpose=registration&email=${encodeURIComponent(form.email.trim())}`,
-      );
+      router.replace(`/verify-email?email=${encodeURIComponent(form.email.trim())}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not create your account.");
     } finally {

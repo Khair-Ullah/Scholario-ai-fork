@@ -1,18 +1,13 @@
-import { ApiError, apiFetch, resetSessionCache } from "@/lib/api";
-
-export type OtpPurpose = "registration" | "password-reset";
+import { ApiError, apiFetch } from "@/lib/api";
 
 export type OtpErrorCode =
   | "INTEGRATION_PENDING"
   | "INVALID_EMAIL"
   | "INVALID_OTP"
   | "OTP_EXPIRED"
+  | "OTP_LIMIT"
   | "RATE_LIMITED"
   | "NETWORK";
-
-export type OtpVerificationResult =
-  | { status: "verified" }
-  | { status: "reset_token"; resetToken: string };
 
 export class OtpServiceError extends Error {
   code: OtpErrorCode;
@@ -36,9 +31,8 @@ function resolveOtpMode(): OtpMode {
 export const OTP_MODE = resolveOtpMode();
 
 const OTP_ENDPOINTS = {
-  request: "/api/auth/otp/request",
-  verify: "/api/auth/otp/verify",
-  resend: "/api/auth/otp/resend",
+  verify: "/api/auth/verify-email",
+  resend: "/api/auth/resend-otp",
 } as const;
 
 const OTP_ERROR_CODES: OtpErrorCode[] = [
@@ -46,6 +40,7 @@ const OTP_ERROR_CODES: OtpErrorCode[] = [
   "INVALID_EMAIL",
   "INVALID_OTP",
   "OTP_EXPIRED",
+  "OTP_LIMIT",
   "RATE_LIMITED",
   "NETWORK",
 ];
@@ -64,6 +59,7 @@ function pendingError(): OtpServiceError {
 function normalizeCode(code?: string): OtpErrorCode | undefined {
   if (!code) return undefined;
   const upper = code.toUpperCase();
+  if (upper === "OTP_INVALID") return "INVALID_OTP";
   return OTP_ERROR_CODES.find((item) => item === upper);
 }
 
@@ -82,7 +78,7 @@ function toOtpError(error: unknown, fallback: string, fallbackCode: OtpErrorCode
   return new OtpServiceError(fallback, "NETWORK");
 }
 
-function mockVerify(purpose: OtpPurpose, email: string, code: string): OtpVerificationResult {
+function mockVerify(otp: string): void {
   const simulate =
     typeof window === "undefined"
       ? ""
@@ -97,33 +93,29 @@ function mockVerify(purpose: OtpPurpose, email: string, code: string): OtpVerifi
   if (simulate === "rate-limited") {
     throw new OtpServiceError("Too many attempts. Please wait before trying again.", "RATE_LIMITED");
   }
-  if (!/^\d{6}$/.test(code)) {
+  if (!/^\d{6}$/.test(otp)) {
     throw new OtpServiceError("Enter the 6-digit code from your email.", "INVALID_OTP");
   }
-
-  if (purpose === "password-reset") {
-    return { status: "reset_token", resetToken: `dev-mock-reset-token-${email}` };
-  }
-  return { status: "verified" };
 }
 
-export async function requestOtp(purpose: OtpPurpose, email: string): Promise<void> {
+export async function verifyEmailOtp(email: string, otp: string): Promise<void> {
   if (OTP_MODE === "pending") throw pendingError();
   if (OTP_MODE === "mock") {
     await sleep(350);
+    mockVerify(otp);
     return;
   }
   try {
-    await apiFetch(OTP_ENDPOINTS.request, {
+    await apiFetch(OTP_ENDPOINTS.verify, {
       method: "POST",
-      body: JSON.stringify({ purpose, email }),
+      body: JSON.stringify({ email, otp }),
     });
   } catch (error) {
-    throw toOtpError(error, "We could not send the verification code.", "INVALID_EMAIL");
+    throw toOtpError(error, "We could not verify that code.", "INVALID_OTP");
   }
 }
 
-export async function resendOtp(purpose: OtpPurpose, email: string): Promise<void> {
+export async function resendEmailOtp(email: string): Promise<void> {
   if (OTP_MODE === "pending") throw pendingError();
   if (OTP_MODE === "mock") {
     await sleep(350);
@@ -132,42 +124,9 @@ export async function resendOtp(purpose: OtpPurpose, email: string): Promise<voi
   try {
     await apiFetch(OTP_ENDPOINTS.resend, {
       method: "POST",
-      body: JSON.stringify({ purpose, email }),
+      body: JSON.stringify({ email }),
     });
   } catch (error) {
     throw toOtpError(error, "We could not resend the verification code.", "RATE_LIMITED");
-  }
-}
-
-export async function verifyOtp(
-  purpose: OtpPurpose,
-  email: string,
-  code: string,
-): Promise<OtpVerificationResult> {
-  if (OTP_MODE === "pending") throw pendingError();
-  if (OTP_MODE === "mock") return mockVerify(purpose, email, code);
-  try {
-    const response = await apiFetch<{ reset_token?: string }>(OTP_ENDPOINTS.verify, {
-      method: "POST",
-      body: JSON.stringify({ purpose, email, code }),
-    });
-    if (purpose === "password-reset") {
-      if (!response.reset_token) {
-        throw new OtpServiceError("The verification response was incomplete.", "NETWORK");
-      }
-      return { status: "reset_token", resetToken: response.reset_token };
-    }
-    return { status: "verified" };
-  } catch (error) {
-    throw toOtpError(error, "We could not verify that code.", "INVALID_OTP");
-  }
-}
-
-export async function clearRegistrationSession(): Promise<void> {
-  resetSessionCache();
-  try {
-    await apiFetch("/api/auth/logout", { method: "POST" });
-  } catch {
-    resetSessionCache();
   }
 }

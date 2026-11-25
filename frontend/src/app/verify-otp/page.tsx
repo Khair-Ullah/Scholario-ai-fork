@@ -1,78 +1,26 @@
 "use client";
 
-import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
-import { Link2Off } from "lucide-react";
-import AuthGate, { AuthLink, AuthSwitchLink } from "@/components/AuthGate";
-import OtpForm from "@/components/OtpForm";
-import type { OtpPurpose } from "@/lib/auth-otp";
+import { Suspense, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-function VerifyOtpContent() {
+function VerifyOtpRedirect() {
+  const router = useRouter();
   const params = useSearchParams();
-  const email = (params.get("email") ?? "").trim();
-  const purpose: OtpPurpose =
-    params.get("purpose") === "password-reset" ? "password-reset" : "registration";
-  const emailLooksValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  const backHref = purpose === "password-reset" ? "/forgot-password" : "/register";
-  const backLabel = purpose === "password-reset" ? "Request a new code" : "Use a different email";
+  const email = params.get("email") ?? "";
+  const purpose = params.get("purpose");
 
-  let eyebrow = "VERIFY EMAIL";
-  let title = "Check your inbox";
-  let subtitle = `Enter the 6-digit code sent to ${email}. It expires in 10 minutes.`;
-
-  if (!emailLooksValid) {
-    eyebrow = "LINK PROBLEM";
-    title = "We need your email";
-    subtitle = "Open the verification link again or request a fresh code.";
-  } else if (purpose === "password-reset") {
-    eyebrow = "VERIFY RESET";
-    title = "Confirm it's you";
-    subtitle = `Enter the 6-digit reset code sent to ${email}. It expires in 10 minutes.`;
-  }
+  useEffect(() => {
+    const target =
+      purpose === "password-reset"
+        ? `/forgot-password?email=${encodeURIComponent(email)}`
+        : `/verify-email?email=${encodeURIComponent(email)}`;
+    router.replace(target);
+  }, [email, purpose, router]);
 
   return (
-    <AuthGate
-      mobileAlign="center"
-      kicker="SECURE BY DEFAULT"
-      headline={
-        <>
-          One step closer.
-          <br />
-          Let&apos;s keep it <em>secure.</em>
-        </>
-      }
-      copy="Verify the code sent to your email before continuing to your account."
-      points={
-        purpose === "registration"
-          ? ["6-digit code from your email", "Code expires in 10 minutes", "Sign in after verification"]
-          : ["6-digit code from your email", "One-time reset token", "Choose a new password next"]
-      }
-      eyebrow={eyebrow}
-      title={title}
-      subtitle={subtitle}
-      switchLine={
-        <AuthSwitchLink href="/login" direction="left" label="Already verified?" cta="Sign in" />
-      }
-    >
-      {emailLooksValid ? (
-        <OtpForm purpose={purpose} email={email} />
-      ) : (
-        <div className="authgate-success authgate-success-warn">
-          <span className="authgate-success-icon">
-            <Link2Off size={22} />
-          </span>
-          <p className="authgate-success-copy">
-            The verification link is missing the email address.
-          </p>
-          <p className="authgate-success-note">
-            Codes expire in 10 minutes, so request a new one if needed.
-          </p>
-          <AuthLink className="authgate-secondary" href={backHref} direction="left">
-            {backLabel}
-          </AuthLink>
-        </div>
-      )}
-    </AuthGate>
+    <main className="authgate-viewport">
+      <p className="authgate-loading">Redirecting to email verification...</p>
+    </main>
   );
 }
 
@@ -81,11 +29,11 @@ export default function VerifyOtpPage() {
     <Suspense
       fallback={
         <main className="authgate-viewport">
-          <p className="authgate-loading">Preparing verification...</p>
+          <p className="authgate-loading">Redirecting to email verification...</p>
         </main>
       }
     >
-      <VerifyOtpContent />
+      <VerifyOtpRedirect />
     </Suspense>
   );
 }

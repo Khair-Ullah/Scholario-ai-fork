@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiFetch, resetSessionCache } from "@/lib/api";
+import { ApiError, apiFetch, resetSessionCache } from "@/lib/api";
 
 declare global {
   interface Window {
@@ -22,10 +22,11 @@ declare global {
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
 
-export default function GoogleButton({ mode = "signin" }: { mode?: "signin" | "signup" }) {
+export default function GoogleButton({ mode = "signin" }: { mode?: "signin" | "signup" | "link" }) {
   const router = useRouter();
   const container = useRef<HTMLDivElement>(null);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     if (!CLIENT_ID || !container.current) return;
@@ -33,11 +34,17 @@ export default function GoogleButton({ mode = "signin" }: { mode?: "signin" | "s
 
     async function handle(response: { credential?: string }) {
       if (!response.credential) return;
+      setError("");
+      setMessage("");
       try {
-        await apiFetch("/api/auth/google", {
+        await apiFetch(mode === "link" ? "/api/auth/google/link" : "/api/auth/google", {
           method: "POST",
           body: JSON.stringify({ credential: response.credential }),
         });
+        if (mode === "link") {
+          setMessage("Google account linked successfully.");
+          return;
+        }
         resetSessionCache();
         const next = new URLSearchParams(window.location.search).get("next");
         const safeNext =
@@ -46,6 +53,12 @@ export default function GoogleButton({ mode = "signin" }: { mode?: "signin" | "s
             : "/dashboard";
         router.replace(safeNext);
       } catch (cause) {
+        if (cause instanceof ApiError && cause.code === "GOOGLE_LINK_REQUIRED") {
+          setError(
+            "An account already exists. Sign in with your password first, then link Google from your profile.",
+          );
+          return;
+        }
         setError(cause instanceof Error ? cause.message : "Google sign-in failed. Please try again.");
       }
     }
@@ -90,6 +103,7 @@ export default function GoogleButton({ mode = "signin" }: { mode?: "signin" | "s
       <div className="google-auth-divider"><span>or</span></div>
       <div ref={container} className="google-auth-button" />
       {error && <p className="form-error" role="alert">{error}</p>}
+      {message && <p className="input-hint" role="status">{message}</p>}
     </div>
   );
 }

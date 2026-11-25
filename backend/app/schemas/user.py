@@ -10,6 +10,22 @@ class UserCreate(BaseModel):
     referral_code: str | None = Field(default=None, max_length=24)
 
 
+class RegistrationPending(BaseModel):
+    message: str
+    email: EmailStr
+    verification_required: bool
+    email_sent: bool
+
+
+class VerifyEmailRequest(BaseModel):
+    email: EmailStr
+    otp: str = Field(pattern=r"^\d{6}$")
+
+
+class ResendOTPRequest(BaseModel):
+    email: EmailStr
+
+
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=128)

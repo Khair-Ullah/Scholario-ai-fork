@@ -1,12 +1,13 @@
+import hashlib
+import hmac
 import os
 import secrets
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func
-
-import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from sqlalchemy import select, update
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.core.csrf import CSRF_COOKIE, new_csrf_token, set_csrf_cookie
@@ -22,6 +23,7 @@ from app.core.security import (
     hash_recovery_code,
     hash_token,
     new_recovery_codes,
+    secret_key,
     totp_provisioning_uri,
     verify_password,
     verify_totp,
@@ -35,13 +37,16 @@ from app.schemas.user import (
     MfaCodeRequest,
     MfaSetupResponse,
     MfaStatusResponse,
+    RegistrationPending,
+    ResendOTPRequest,
     ResetPasswordRequest,
     UserCreate,
     UserPublic,
+    VerifyEmailRequest,
 )
 from app.services import auth_guard
 from app.services.audit import log_audit, request_ip
-from app.services.email import send_password_reset
+from app.services.email import send_password_reset, send_verification_otp
 from app.services.net import client_ip
 from app.services.settings import get_settings
 from app.services.token_blocklist import purge_expired, revoke_access_claims
@@ -55,6 +60,27 @@ _DUMMY_PASSWORD_HASH = (
 )
 
 PASSWORD_RESET_MINUTES = 30
+EMAIL_OTP_PURPOSE = "email_otp"
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+
+
+EMAIL_OTP_TTL_MINUTES = _env_int("EMAIL_OTP_TTL_MINUTES", 10)
+EMAIL_OTP_MAX_ATTEMPTS = _env_int("EMAIL_OTP_MAX_ATTEMPTS", 5)
+EMAIL_OTP_RESEND_COOLDOWN = _env_int("EMAIL_OTP_RESEND_COOLDOWN", 60)
+
+
+def _email_verification_required() -> bool:
+    return os.getenv("REQUIRE_EMAIL_VERIFICATION", "true").strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _as_utc(value: datetime) -> datetime:
+    return value if value.tzinfo else value.replace(tzinfo=UTC)
 
 
 def _frontend_base() -> str:
@@ -77,6 +103,79 @@ def _issue_auth_token(db: Session, user: User, purpose: str, minutes: int) -> st
         )
     )
     return raw
+
+
+def _otp_digest(otp: str) -> str:
+    return hmac.new(secret_key().encode("utf-8"), otp.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def _issue_email_otp(db: Session, user: User) -> str:
+    db.execute(
+        update(AuthToken)
+        .where(
+            AuthToken.user_id == user.id,
+            AuthToken.purpose == EMAIL_OTP_PURPOSE,
+            AuthToken.used.is_(False),
+        )
+        .values(used=True)
+    )
+    otp = f"{secrets.randbelow(1_000_000):06d}"
+    db.add(
+        AuthToken(
+            user_id=user.id,
+            purpose=EMAIL_OTP_PURPOSE,
+            token_hash=_otp_digest(otp),
+            expires_at=datetime.now(UTC) + timedelta(minutes=EMAIL_OTP_TTL_MINUTES),
+            attempts=0,
+        )
+    )
+    db.flush()
+    return otp
+
+
+def _verify_email_otp(db: Session, user: User, submitted_otp: str) -> None:
+    token = db.scalar(
+        select(AuthToken)
+        .where(
+            AuthToken.user_id == user.id,
+            AuthToken.purpose == EMAIL_OTP_PURPOSE,
+            AuthToken.used.is_(False),
+        )
+        .order_by(AuthToken.created_at.desc())
+        .with_for_update()
+    )
+    if token is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or expired verification code",
+            headers={"X-Error-Code": "OTP_INVALID"},
+        )
+    if _as_utc(token.expires_at) <= datetime.now(UTC):
+        token.used = True
+        db.commit()
+        raise HTTPException(
+            status_code=400,
+            detail="Verification code expired",
+            headers={"X-Error-Code": "OTP_EXPIRED"},
+        )
+    if token.attempts >= EMAIL_OTP_MAX_ATTEMPTS:
+        token.used = True
+        db.commit()
+        raise HTTPException(
+            status_code=429,
+            detail="Maximum verification attempts reached",
+            headers={"X-Error-Code": "OTP_LIMIT"},
+        )
+    if not hmac.compare_digest(token.token_hash, _otp_digest(submitted_otp)):
+        token.attempts += 1
+        db.commit()
+        code = "OTP_LIMIT" if token.attempts >= EMAIL_OTP_MAX_ATTEMPTS else "OTP_INVALID"
+        raise HTTPException(
+            status_code=429 if token.attempts >= EMAIL_OTP_MAX_ATTEMPTS else 400,
+            detail="Invalid or expired verification code",
+            headers={"X-Error-Code": code},
+        )
+    token.used = True
 
 
 def _set_session(response: Response, user: User, db: Session, request: Request) -> None:
@@ -190,6 +289,12 @@ def _authenticate(
         )
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account is inactive", headers={"X-Error-Code": "AUTH_INACTIVE"})
+    if _email_verification_required() and not user.is_verified:
+        raise HTTPException(
+            status_code=403,
+            detail="Please verify your email before signing in.",
+            headers={"X-Error-Code": "EMAIL_NOT_VERIFIED"},
+        )
     if required_roles is not None and user.role not in required_roles:
         raise HTTPException(
             status_code=403,
@@ -218,9 +323,11 @@ def _record_failed_login(db: Session, request: Request, payload: LoginRequest, a
     )
 
 
-@router.post("/register", response_model=AuthResponse, status_code=201)
+@router.post("/register", response_model=RegistrationPending, status_code=201)
 @limiter.limit("5/minute")
-def register(payload: UserCreate, request: Request, response: Response, db: Session = Depends(get_db)) -> AuthResponse:
+def register(
+    payload: UserCreate, request: Request, response: Response, db: Session = Depends(get_db)
+) -> RegistrationPending:
     email = str(payload.email).lower()
     settings = get_settings(db)
     if not settings.get("flags", {}).get("registration_enabled", True):
@@ -238,12 +345,14 @@ def register(payload: UserCreate, request: Request, response: Response, db: Sess
     referrer = None
     if payload.referral_code:
         referrer = db.scalar(select(User).where(User.referral_code == payload.referral_code))
+    verification_required = _email_verification_required()
     user = User(
         email=email,
         password_hash=hash_password(payload.password),
         full_name=payload.full_name.strip(),
         referral_code=secrets.token_urlsafe(9),
         referred_by_id=referrer.id if referrer else None,
+        is_verified=not verification_required,
     )
     db.add(user)
     db.flush()
@@ -251,12 +360,89 @@ def register(payload: UserCreate, request: Request, response: Response, db: Sess
         referred_count = db.scalar(select(func.count(User.id)).where(User.referred_by_id == referrer.id)) or 0
         if referred_count >= 3 and referrer.plan != "pro":
             referrer.plan = "pro"
-    _set_session(response, user, db, request)
+    if not verification_required:
+        _set_session(response, user, db, request)
+        db.commit()
+        return RegistrationPending(
+            message="Account created.", email=email, verification_required=False, email_sent=False
+        )
+    otp = _issue_email_otp(db, user)
     db.commit()
-    db.refresh(user)
-    return AuthResponse(
-        user=UserPublic.model_validate(user), message="Account created. Email verification is not configured yet."
+    email_sent = send_verification_otp(user.email, otp)
+    message = (
+        "Account created. Please verify your email."
+        if email_sent
+        else "Account created. Verification email could not be sent. Please resend the code."
     )
+    return RegistrationPending(
+        message=message, email=email, verification_required=True, email_sent=email_sent
+    )
+
+
+@router.post("/verify-email")
+@limiter.limit("5/minute")
+def verify_email(
+    payload: VerifyEmailRequest, request: Request, db: Session = Depends(get_db)
+) -> dict[str, str]:
+    email = str(payload.email).lower()
+    user = db.scalar(select(User).where(User.email == email))
+    if user is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or expired verification code",
+            headers={"X-Error-Code": "OTP_INVALID"},
+        )
+    if user.is_verified:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid verification request",
+            headers={"X-Error-Code": "OTP_INVALID"},
+        )
+    _verify_email_otp(db, user, payload.otp)
+    user.is_verified = True
+    log_audit(
+        db,
+        actor=user,
+        action="auth.email_verified",
+        entity="user",
+        entity_id=user.id,
+        ip=request_ip(request),
+    )
+    db.commit()
+    return {"message": "Email successfully verified. You can now sign in."}
+
+
+@router.post("/resend-otp")
+@limiter.limit("3/minute")
+def resend_otp(
+    payload: ResendOTPRequest, request: Request, db: Session = Depends(get_db)
+) -> dict[str, str]:
+    email = str(payload.email).lower()
+    generic = {"message": "If verification is pending, a new code will be sent."}
+    user = db.scalar(select(User).where(User.email == email))
+    if user is None or user.is_verified:
+        return generic
+    latest = db.scalar(
+        select(AuthToken)
+        .where(AuthToken.user_id == user.id, AuthToken.purpose == EMAIL_OTP_PURPOSE)
+        .order_by(AuthToken.created_at.desc())
+    )
+    if latest and (datetime.now(UTC) - _as_utc(latest.created_at)).total_seconds() < EMAIL_OTP_RESEND_COOLDOWN:
+        return generic
+    otp = _issue_email_otp(db, user)
+    db.commit()
+    send_verification_otp(user.email, otp)
+    log_audit(
+        db,
+        actor=None,
+        action="auth.verification_resent",
+        entity="user",
+        entity_id=user.id,
+        actor_email=email,
+        ip=request_ip(request),
+    )
+    db.commit()
+    return generic
 
 
 @router.post("/forgot-password", status_code=202)
@@ -326,14 +512,7 @@ def reset_password(
     return {"message": "Password updated. Please sign in with your new password."}
 
 
-@router.post("/google", response_model=AuthResponse)
-@limiter.limit("10/minute")
-def google_auth(
-    payload: GoogleAuthRequest,
-    request: Request,
-    response: Response,
-    db: Session = Depends(get_db),
-) -> AuthResponse:
+def _verify_google_credential(credential: str) -> dict:
     client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip()
     if not client_id:
         raise HTTPException(
@@ -342,31 +521,14 @@ def google_auth(
             headers={"X-Error-Code": "GOOGLE_AUTH_DISABLED"},
         )
     try:
-        verified = httpx.get(
-            "https://oauth2.googleapis.com/tokeninfo",
-            params={"id_token": payload.credential},
-            timeout=10,
-        )
-    except httpx.HTTPError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail="Could not reach Google to verify sign-in. Please try again.",
-            headers={"X-Error-Code": "GOOGLE_UNAVAILABLE"},
-        ) from exc
-    if verified.status_code != 200:
+        info = id_token.verify_oauth2_token(credential, google_requests.Request(), client_id)
+    except Exception:
         raise HTTPException(
             status_code=401,
             detail="Google sign-in could not be verified",
             headers={"X-Error-Code": "GOOGLE_INVALID"},
-        )
-    info = verified.json()
-    if str(info.get("aud", "")) != client_id:
-        raise HTTPException(
-            status_code=401,
-            detail="Google sign-in could not be verified",
-            headers={"X-Error-Code": "GOOGLE_INVALID"},
-        )
-    if str(info.get("email_verified", "")).lower() not in {"true", "1"}:
+        ) from None
+    if not info.get("email_verified"):
         raise HTTPException(
             status_code=401,
             detail="Your Google email is not verified",
@@ -380,11 +542,33 @@ def google_auth(
             detail="Google sign-in could not be verified",
             headers={"X-Error-Code": "GOOGLE_INVALID"},
         )
+    return dict(info)
+
+
+@router.post("/google", response_model=AuthResponse)
+@limiter.limit("10/minute")
+def google_auth(
+    payload: GoogleAuthRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+) -> AuthResponse:
+    info = _verify_google_credential(payload.credential)
+    email = str(info.get("email", "")).lower()
+    subject = str(info.get("sub", ""))
 
     user = db.scalar(select(User).where(User.google_sub == subject))
     if user is None:
-        user = db.scalar(select(User).where(User.email == email))
-    if user is None:
+        existing = db.scalar(select(User).where(User.email == email))
+        if existing is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "An account already exists. Please sign in with your existing "
+                    "credentials before linking Google."
+                ),
+                headers={"X-Error-Code": "GOOGLE_LINK_REQUIRED"},
+            )
         display_name = str(info.get("name") or email.split("@")[0])[:200]
         user = User(
             email=email,
@@ -407,10 +591,6 @@ def google_auth(
                 detail="This is the student sign-in. Please use your dedicated portal.",
                 headers={"X-Error-Code": "AUTH_FORBIDDEN"},
             )
-        if not user.google_sub:
-            user.google_sub = subject
-        if not user.is_verified:
-            user.is_verified = True
 
     auth_guard.clear_attempts(db, email)
     user.last_login_at = datetime.now(UTC)
@@ -418,6 +598,41 @@ def google_auth(
     db.commit()
     db.refresh(user)
     return AuthResponse(user=UserPublic.model_validate(user), message="Signed in with Google")
+
+
+@router.post("/google/link")
+@limiter.limit("5/minute")
+def link_google_account(
+    payload: GoogleAuthRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict[str, str]:
+    info = _verify_google_credential(payload.credential)
+    google_email = str(info.get("email", "")).lower()
+    subject = str(info.get("sub", ""))
+    if google_email != user.email.lower():
+        raise HTTPException(
+            status_code=400,
+            detail="Google email must match your Scholario email",
+            headers={"X-Error-Code": "GOOGLE_EMAIL_MISMATCH"},
+        )
+    linked = db.scalar(select(User).where(User.google_sub == subject))
+    if linked is not None and linked.id != user.id:
+        raise HTTPException(
+            status_code=409,
+            detail="This Google account is already linked",
+            headers={"X-Error-Code": "GOOGLE_ALREADY_LINKED"},
+        )
+    if user.google_sub and user.google_sub != subject:
+        raise HTTPException(
+            status_code=409,
+            detail="Another Google account is already linked",
+            headers={"X-Error-Code": "GOOGLE_ALREADY_LINKED"},
+        )
+    user.google_sub = subject
+    db.commit()
+    return {"message": "Google account linked"}
 
 
 @router.post("/login", response_model=AuthResponse)
@@ -528,6 +743,12 @@ def refresh(request: Request, response: Response, db: Session = Depends(get_db))
     user = db.get(User, stored.user_id)
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="Account unavailable", headers={"X-Error-Code": "AUTH_INVALID"})
+    if _email_verification_required() and not user.is_verified:
+        raise HTTPException(
+            status_code=403,
+            detail="Email verification required",
+            headers={"X-Error-Code": "EMAIL_NOT_VERIFIED"},
+        )
     stored.revoked = True
     _set_session(response, user, db, request)
     db.commit()
