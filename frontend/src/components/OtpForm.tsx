@@ -131,7 +131,8 @@ export default function OtpForm({ email }: { email: string }) {
             />
           </span>
           <span className="input-hint">
-            Enter the 6-digit code sent to <strong>{email}</strong>.
+            We sent a 6-digit verification code to <strong>{email}</strong>. Enter it below to verify
+            your email.
           </span>
         </label>
 

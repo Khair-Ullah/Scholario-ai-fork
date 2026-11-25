@@ -316,6 +316,32 @@ def test_google_invalid_token(client: TestClient, monkeypatch) -> None:
     assert response.json()["code"] == "GOOGLE_INVALID"
 
 
+def test_google_new_account_requires_email_verification(
+    client: TestClient, otp_sender, monkeypatch
+) -> None:
+    email = "google-new@example.com"
+    monkeypatch.setattr(
+        "app.routers.auth._verify_google_credential",
+        lambda credential: {"email": email, "sub": "google-new-sub", "name": "New Google User"},
+    )
+    response = client.post("/api/auth/google", json={"credential": "x" * 40})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["email"] == email
+    assert body["verification_required"] is True
+    assert body["email_sent"] is True
+    assert client.cookies.get("access_token") is None
+
+    otp = otp_sender[-1][1]
+    verified = client.post("/api/auth/verify-email", json={"email": email, "otp": otp})
+    assert verified.status_code == 200
+
+    signed_in = client.post("/api/auth/google", json={"credential": "x" * 40})
+    assert signed_in.status_code == 200
+    assert signed_in.json()["user"]["email"] == email
+    assert client.cookies.get("access_token")
+
+
 def test_google_existing_account_requires_linking(client: TestClient, monkeypatch) -> None:
     email = "google-link@example.com"
     _add_user(client, email)

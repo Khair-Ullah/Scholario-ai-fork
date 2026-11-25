@@ -37,12 +37,19 @@ export default function GoogleButton({ mode = "signin" }: { mode?: "signin" | "s
       setError("");
       setMessage("");
       try {
-        await apiFetch(mode === "link" ? "/api/auth/google/link" : "/api/auth/google", {
-          method: "POST",
-          body: JSON.stringify({ credential: response.credential }),
-        });
+        const result = await apiFetch<{ verification_required?: boolean; email?: string }>(
+          mode === "link" ? "/api/auth/google/link" : "/api/auth/google",
+          {
+            method: "POST",
+            body: JSON.stringify({ credential: response.credential }),
+          },
+        );
         if (mode === "link") {
           setMessage("Google account linked successfully.");
+          return;
+        }
+        if (result.verification_required && result.email) {
+          router.replace(`/verify-email?email=${encodeURIComponent(result.email)}`);
           return;
         }
         resetSessionCache();

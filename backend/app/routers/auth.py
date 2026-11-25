@@ -545,18 +545,19 @@ def _verify_google_credential(credential: str) -> dict:
     return dict(info)
 
 
-@router.post("/google", response_model=AuthResponse)
+@router.post("/google", response_model=AuthResponse | RegistrationPending)
 @limiter.limit("10/minute")
 def google_auth(
     payload: GoogleAuthRequest,
     request: Request,
     response: Response,
     db: Session = Depends(get_db),
-) -> AuthResponse:
+) -> AuthResponse | RegistrationPending:
     info = _verify_google_credential(payload.credential)
     email = str(info.get("email", "")).lower()
     subject = str(info.get("sub", ""))
 
+    verification_required = _email_verification_required()
     user = db.scalar(select(User).where(User.google_sub == subject))
     if user is None:
         existing = db.scalar(select(User).where(User.email == email))
@@ -575,7 +576,7 @@ def google_auth(
             password_hash=hash_password(secrets.token_urlsafe(32)),
             full_name=display_name,
             referral_code=secrets.token_urlsafe(9),
-            is_verified=True,
+            is_verified=not verification_required,
             google_sub=subject,
         )
         db.add(user)
@@ -591,6 +592,19 @@ def google_auth(
                 detail="This is the student sign-in. Please use your dedicated portal.",
                 headers={"X-Error-Code": "AUTH_FORBIDDEN"},
             )
+
+    if verification_required and not user.is_verified:
+        otp = _issue_email_otp(db, user)
+        db.commit()
+        email_sent = send_verification_otp(user.email, otp)
+        message = (
+            "Account created. Please verify your email."
+            if email_sent
+            else "Account created. Verification email could not be sent. Please resend the code."
+        )
+        return RegistrationPending(
+            message=message, email=user.email, verification_required=True, email_sent=email_sent
+        )
 
     auth_guard.clear_attempts(db, email)
     user.last_login_at = datetime.now(UTC)
