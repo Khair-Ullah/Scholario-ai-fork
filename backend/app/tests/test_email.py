@@ -45,3 +45,29 @@ def test_smtp_failure_does_not_break_caller(monkeypatch) -> None:
     with patch.object(email.smtplib, "SMTP") as smtp_class:
         smtp_class.return_value.__enter__.side_effect = OSError("offline")
         assert email.send_password_reset("student@example.com", "https://example.com/reset") is False
+
+
+def test_send_verification_otp_uses_resend(monkeypatch) -> None:
+    monkeypatch.setenv("EMAIL_PROVIDER", "resend")
+    monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
+    monkeypatch.setenv("SMTP_FROM", "Scholario <no-reply@example.com>")
+
+    with patch.object(email.httpx, "post") as post:
+        post.return_value.status_code = 200
+        assert email.send_verification_otp("student@example.com", "123456") is True
+
+    post.assert_called_once()
+    assert post.call_args.args[0] == email.RESEND_ENDPOINT
+    assert post.call_args.kwargs["headers"]["Authorization"] == "Bearer re_test_key"
+    assert post.call_args.kwargs["json"]["to"] == ["student@example.com"]
+    assert "123456" in post.call_args.kwargs["json"]["text"]
+
+
+def test_resend_failure_does_not_break_caller(monkeypatch) -> None:
+    monkeypatch.setenv("EMAIL_PROVIDER", "resend")
+    monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
+
+    with patch.object(email.httpx, "post") as post:
+        post.return_value.status_code = 401
+        post.return_value.text = "unauthorized"
+        assert email.send_password_reset("student@example.com", "https://example.com/reset") is False

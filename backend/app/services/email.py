@@ -3,16 +3,57 @@ import os
 import smtplib
 from email.message import EmailMessage
 
+import httpx
+
 logger = logging.getLogger("scholario.email")
 
 FROM_ADDRESS = os.getenv("SMTP_FROM", "Scholario <no-reply@scholario.ai>")
+RESEND_ENDPOINT = "https://api.resend.com/emails"
+
+
+def _resend_configured() -> bool:
+    return bool(os.getenv("RESEND_API_KEY", "").strip())
 
 
 def _smtp_configured() -> bool:
     return bool(os.getenv("SMTP_HOST"))
 
 
+def _send_via_resend(to: str, subject: str, body: str, reply_to: str | None = None) -> bool:
+    api_key = os.getenv("RESEND_API_KEY", "").strip()
+    if not api_key:
+        logger.warning("Resend selected but RESEND_API_KEY is missing")
+        return False
+    payload = {"from": FROM_ADDRESS, "to": [to], "subject": subject, "text": body}
+    if reply_to:
+        payload["reply_to"] = reply_to
+    try:
+        response = httpx.post(
+            RESEND_ENDPOINT,
+            headers={"Authorization": f"Bearer {api_key}"},
+            json=payload,
+            timeout=15,
+        )
+        if response.status_code >= 400:
+            logger.error(
+                "Resend rejected email to %s: %s %s",
+                to,
+                response.status_code,
+                response.text[:300],
+            )
+            return False
+        return True
+    except Exception:
+        logger.exception("Failed to send email to %s via Resend", to)
+        return False
+
+
 def _send(to: str, subject: str, body: str, reply_to: str | None = None) -> bool:
+    provider = os.getenv("EMAIL_PROVIDER", "auto").strip().lower()
+    if provider == "resend" or (provider == "auto" and _resend_configured()):
+        return _send_via_resend(to, subject, body, reply_to)
+    if provider not in {"auto", "smtp"}:
+        logger.warning("Unknown EMAIL_PROVIDER=%s; falling back to SMTP", provider)
     if not _smtp_configured():
         if os.getenv("APP_ENV", "development") == "production":
             logger.warning("Email not sent to %s: SMTP is not configured", to)
